@@ -1,6 +1,6 @@
 # Supermercado MM - Pedidos via WhatsApp
 
-Projeto para operação de pedidos do Supermercado MM (Vila Planalto - DF) via WhatsApp, com interpretação de mensagens e áudios por GPT, validação de pedido e atualização de status operacional em fluxo interno. O foco é ter backend robusto para integração com WhatsApp Cloud API, filas e banco de dados, com interface simples para o time da loja.
+Projeto para operação de pedidos do Supermercado MM (Vila Planalto - DF) via WhatsApp, com interpretação de mensagens e áudios por GPT, validação de pedido e atualização de status operacional em fluxo interno.
 
 A documentação detalhada de checklist, ENV completo, custos estimados e requisitos operacionais está em `OPERACAO_WHATSAPP_GPT_CUSTOS.md`.
 
