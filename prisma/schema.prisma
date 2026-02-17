@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum StatusPedido {
+  NOVO_PEDIDO
+  EM_SEPARACAO
+  AGUARDANDO_ENTREGADOR
+  SAIU_PARA_ENTREGA
+  FINALIZADO
+}
+
+model Cliente {
+  id              String   @id @default(cuid())
+  nome            String?
+  telefone        String   @unique
+  criadoEm        DateTime @default(now())
+  atualizadoEm    DateTime @updatedAt
+  pedidos         Pedido[]
+}
+
+model Pedido {
+  id                    String          @id @default(cuid())
+  clienteId             String
+  cliente               Cliente         @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  mensagemOriginal      String?
+  textoInterpretado     String?
+  status                StatusPedido    @default(NOVO_PEDIDO)
+  totalCentavos         Int?
+  enderecoEntrega       String?
+  observacoes           String?
+  criadoEm              DateTime        @default(now())
+  atualizadoEm          DateTime        @updatedAt
+  itens                 ItemPedido[]
+  historicoStatus       HistoricoStatus[]
+
+  @@index([status])
+  @@index([criadoEm])
+}
+
+model ItemPedido {
+  id                    String   @id @default(cuid())
+  pedidoId              String
+  pedido                Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  nome                  String
+  quantidade            Float
+  unidade               String?
+  precoUnitarioCentavos Int?
+  criadoEm              DateTime @default(now())
+}
+
+model HistoricoStatus {
+  id                  String      @id @default(cuid())
+  pedidoId            String
+  pedido              Pedido      @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  statusAnterior      StatusPedido?
+  statusNovo          StatusPedido
+  alteradoPor         String?
+  criadoEm            DateTime    @default(now())
+
+  @@index([pedidoId, criadoEm])
+}
