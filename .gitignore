@@ -34,3 +34,6 @@ prisma/dev.db*
 *.swp
 *.swo
 *.pem
+
+# local json webhook logs
+logs/
