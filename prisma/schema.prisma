@@ -7,61 +7,322 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum StatusPedido {
-  NOVO_PEDIDO
-  EM_SEPARACAO
-  AGUARDANDO_ENTREGADOR
-  SAIU_PARA_ENTREGA
-  FINALIZADO
+enum OrderStatus {
+  NEW_ORDER
+  IN_PICKING
+  WAITING_COURIER
+  OUT_FOR_DELIVERY
+  COMPLETED
 }
 
-model Cliente {
-  id              String   @id @default(cuid())
-  nome            String?
-  telefone        String   @unique
-  criadoEm        DateTime @default(now())
-  atualizadoEm    DateTime @updatedAt
-  pedidos         Pedido[]
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  COMPLETED
+  CANCELED
 }
 
-model Pedido {
-  id                    String          @id @default(cuid())
-  clienteId             String
-  cliente               Cliente         @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  mensagemOriginal      String?
-  textoInterpretado     String?
-  status                StatusPedido    @default(NOVO_PEDIDO)
-  totalCentavos         Int?
-  enderecoEntrega       String?
-  observacoes           String?
-  criadoEm              DateTime        @default(now())
-  atualizadoEm          DateTime        @updatedAt
-  itens                 ItemPedido[]
-  historicoStatus       HistoricoStatus[]
+enum CampaignRecipientStatus {
+  PENDING
+  PROCESSING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  SKIPPED
+}
+
+enum CustomerOrderPattern {
+  UNKNOWN
+  RECURRING
+  SPORADIC
+}
+
+enum WhatsAppTemplateCategory {
+  MARKETING
+  UTILITY
+  AUTHENTICATION
+}
+
+enum WhatsAppMessageType {
+  TEMPLATE
+  TEXT
+}
+
+enum WhatsAppDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum WhatsAppMessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+model Customer {
+  id                String                    @id @default(cuid())
+  name              String?
+  phone             String                    @unique
+  phoneE164         String?                   @unique
+  whatsappOptInAt   DateTime?
+  whatsappOptOutAt  DateTime?
+  firstOrderAt      DateTime?
+  lastOrderAt       DateTime?
+  totalOrders       Int                       @default(0)
+  totalSpentCents   BigInt                    @default(0)
+  avgDaysBetweenOrders Float?
+  orderPattern      CustomerOrderPattern      @default(UNKNOWN)
+  orderPatternUpdatedAt DateTime?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  orders            Order[]
+  productAffinities CustomerProductAffinity[]
+  campaignRecipients CampaignRecipient[]
+  whatsappMessages  WhatsAppMessage[]
+  conversationWindows WhatsAppConversationWindow[]
+
+  @@index([phoneE164])
+  @@index([orderPattern, lastOrderAt])
+  @@index([totalOrders, lastOrderAt])
+}
+
+model Employee {
+  id                  String          @id @default(cuid())
+  name                String
+  role                String
+  isActive            Boolean         @default(true)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  pickingOrders       Order[]         @relation("OrderPickingEmployee")
+  deliveryOrders      Order[]         @relation("OrderDeliveryEmployee")
+  statusChanges       StatusHistory[]
+
+  @@index([isActive, role])
+}
+
+model Product {
+  id                String                    @id @default(cuid())
+  name              String
+  normalizedName    String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  orderItems        OrderItem[]
+  customerAffinities CustomerProductAffinity[]
+  campaigns         Campaign[]
+
+  @@index([name])
+  @@index([normalizedName])
+}
+
+model Order {
+  id               String          @id @default(cuid())
+  customerId       String
+  customer         Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  pickingEmployeeId String?
+  pickingEmployee  Employee?       @relation("OrderPickingEmployee", fields: [pickingEmployeeId], references: [id], onDelete: SetNull)
+  deliveryEmployeeId String?
+  deliveryEmployee Employee?       @relation("OrderDeliveryEmployee", fields: [deliveryEmployeeId], references: [id], onDelete: SetNull)
+  rawMessage       String?
+  interpretedText  String?
+  status           OrderStatus     @default(NEW_ORDER)
+  totalCents       Int?
+  deliveryAddress  String?
+  notes            String?
+  pickingStartedAt DateTime?
+  pickingFinishedAt DateTime?
+  outForDeliveryAt DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  items            OrderItem[]
+  statusHistory    StatusHistory[]
 
   @@index([status])
-  @@index([criadoEm])
+  @@index([createdAt])
+  @@index([customerId, createdAt])
 }
 
-model ItemPedido {
-  id                    String   @id @default(cuid())
-  pedidoId              String
-  pedido                Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  nome                  String
-  quantidade            Float
-  unidade               String?
-  precoUnitarioCentavos Int?
-  criadoEm              DateTime @default(now())
+model OrderItem {
+  id               String   @id @default(cuid())
+  orderId          String
+  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId        String?
+  product          Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productName      String
+  quantity         Float
+  unit             String?
+  unitPriceCents   Int?
+  createdAt        DateTime @default(now())
+
+  @@index([productId])
+  @@index([productName])
 }
 
-model HistoricoStatus {
-  id                  String      @id @default(cuid())
-  pedidoId            String
-  pedido              Pedido      @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  statusAnterior      StatusPedido?
-  statusNovo          StatusPedido
-  alteradoPor         String?
-  criadoEm            DateTime    @default(now())
+model StatusHistory {
+  id              String       @id @default(cuid())
+  orderId         String
+  order           Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedByEmployeeId String?
+  changedByEmployee Employee?  @relation(fields: [changedByEmployeeId], references: [id], onDelete: SetNull)
+  fromStatus      OrderStatus?
+  toStatus        OrderStatus
+  changedBy       String?
+  createdAt       DateTime     @default(now())
 
-  @@index([pedidoId, criadoEm])
+  @@index([orderId, createdAt])
+}
+
+model CustomerProductAffinity {
+  id              String    @id @default(cuid())
+  customerId      String
+  customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  firstPurchasedAt DateTime
+  lastPurchasedAt DateTime
+  purchaseCount   Int       @default(1)
+  totalQuantity   Float     @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([customerId, productId])
+  @@index([productId, purchaseCount])
+  @@index([lastPurchasedAt])
+}
+
+model Campaign {
+  id               String             @id @default(cuid())
+  name             String
+  description      String?
+  targetProductId  String?
+  targetProduct    Product?           @relation(fields: [targetProductId], references: [id], onDelete: SetNull)
+  whatsappTemplateId String?
+  whatsappTemplate WhatsAppTemplate?  @relation(fields: [whatsappTemplateId], references: [id], onDelete: SetNull)
+  templateVariables Json?
+  messageTextFallback String?
+  status           CampaignStatus     @default(DRAFT)
+  scheduledAt      DateTime?
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  recipients       CampaignRecipient[]
+  whatsappMessages WhatsAppMessage[]
+
+  @@index([status, scheduledAt])
+  @@index([targetProductId])
+  @@index([whatsappTemplateId])
+}
+
+model CampaignRecipient {
+  id               String                  @id @default(cuid())
+  campaignId       String
+  campaign         Campaign                @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  customerId       String
+  customer         Customer                @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  status           CampaignRecipientStatus @default(PENDING)
+  channel          String                  @default("WHATSAPP")
+  sentAt           DateTime?
+  failureReason    String?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  whatsappMessages WhatsAppMessage[]
+
+  @@unique([campaignId, customerId])
+  @@index([status])
+  @@index([status, createdAt])
+  @@index([customerId, createdAt])
+}
+
+model WhatsAppTemplate {
+  id               String                   @id @default(cuid())
+  name             String
+  languageCode     String                   @default("pt_BR")
+  category         WhatsAppTemplateCategory
+  bodyText         String
+  headerText       String?
+  footerText       String?
+  buttonSchema     Json?
+  metaTemplateId   String?                  @unique
+  isActive         Boolean                  @default(true)
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  campaigns        Campaign[]
+  whatsappMessages WhatsAppMessage[]
+
+  @@unique([name, languageCode])
+  @@index([isActive, category])
+}
+
+model WhatsAppMessage {
+  id                    String                @id @default(cuid())
+  customerId            String
+  customer              Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  campaignId            String?
+  campaign              Campaign?             @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  campaignRecipientId   String?
+  campaignRecipient     CampaignRecipient?    @relation(fields: [campaignRecipientId], references: [id], onDelete: SetNull)
+  conversationWindowId  String?
+  conversationWindow    WhatsAppConversationWindow? @relation(fields: [conversationWindowId], references: [id], onDelete: SetNull)
+  templateId            String?
+  template              WhatsAppTemplate?     @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  type                  WhatsAppMessageType   @default(TEMPLATE)
+  direction             WhatsAppDirection     @default(OUTBOUND)
+  toPhoneE164           String
+  content               Json?
+  variables             Json?
+  status                WhatsAppMessageStatus @default(QUEUED)
+  provider              String                @default("META_CLOUD_API")
+  providerMessageId     String?               @unique
+  providerErrorCode     String?
+  providerErrorMessage  String?
+  sentAt                DateTime?
+  deliveredAt           DateTime?
+  readAt                DateTime?
+  failedAt              DateTime?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  statusEvents          WhatsAppMessageEvent[]
+
+  @@index([campaignId, status])
+  @@index([customerId, createdAt])
+  @@index([toPhoneE164, createdAt])
+  @@index([conversationWindowId, createdAt])
+}
+
+model WhatsAppMessageEvent {
+  id                  String                @id @default(cuid())
+  whatsappMessageId   String
+  whatsappMessage     WhatsAppMessage       @relation(fields: [whatsappMessageId], references: [id], onDelete: Cascade)
+  eventKey            String                @unique
+  providerMessageId   String?
+  status              WhatsAppMessageStatus
+  providerStatus      String?
+  providerTimestamp   DateTime?
+  payload             Json?
+  createdAt           DateTime              @default(now())
+
+  @@index([whatsappMessageId, createdAt])
+  @@index([providerMessageId, createdAt])
+}
+
+model WhatsAppConversationWindow {
+  id                   String             @id @default(cuid())
+  customerId           String
+  customer             Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  openedByDirection    WhatsAppDirection
+  openedByMessageId    String?
+  openedAt             DateTime
+  closesAt             DateTime
+  closedAt             DateTime?
+  isOpen               Boolean            @default(true)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  messages             WhatsAppMessage[]
+
+  @@index([customerId, isOpen])
+  @@index([closesAt, isOpen])
 }
