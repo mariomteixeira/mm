@@ -6,6 +6,10 @@ A documentação detalhada de checklist, ENV completo, custos estimados e requis
 
 ## Comandos
 
+- `npm run stack:up`: sobe stack completa via Docker (`app + worker:llm + worker:drafts + postgres + redis`).
+- `npm run stack:down`: derruba stack completa Docker.
+- `npm run stack:logs`: acompanha logs da stack completa.
+
 - `npm run dev`: inicia o app em desenvolvimento.
 - `npm run build`: gera build de produção.
 - `npm run start`: inicia o app em produção.
@@ -17,6 +21,7 @@ A documentação detalhada de checklist, ENV completo, custos estimados e requis
 - `npm run infra:logs`: acompanha logs da infraestrutura Docker.
 - `npm run infra:wait`: aguarda portas de PostgreSQL/Redis ficarem prontas.
 - `npm run db:generate`: gera Prisma Client.
-- `npm run db:push`: aplica schema no banco sem migration versionada.
-- `npm run db:migrate`: cria/aplica migration local.
-- `npm run dev:full`: sobe infra + prepara banco + inicia app.
+- `npm run db:push`: aplica schema direto (uso excepcional/prototipagem).
+- `npm run db:migrate`: cria/aplica migration local (fluxo padrão de desenvolvimento).
+- `npm run db:migrate:deploy`: aplica migrations existentes (sem criar novas).
+- `npm run dev:full`: sobe infra + aplica migrations + inicia app.
