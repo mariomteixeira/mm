@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: Aptos, "Segoe UI", Calibri, Arial, sans-serif;
+}
+
+::view-transition-old(order-card),
+::view-transition-new(order-card) {
+  animation-duration: 220ms;
+  animation-timing-function: ease-out;
+}
