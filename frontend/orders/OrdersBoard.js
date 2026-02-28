@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ORDER_COLUMNS, getColumnByStatus } from './constants.js';
 import { businessConfig } from './business_config.js';
@@ -57,9 +57,12 @@ const CATEGORY_KEYWORDS = {
     'bolo',
   ],
   Hortifruti: [
+    'acelga',
     'alface',
     'brocolis',
     'brócolis',
+    'cebolinha',
+    'gengibre',
     'pepino',
     'tomate',
     'cebola',
@@ -94,6 +97,46 @@ const CATEGORY_KEYWORDS = {
   ],
 };
 
+const CATEGORY_PHRASE_OVERRIDES = [
+  {
+    section: 'Produtos Gerais',
+    phrases: [
+      'extrato de tomate',
+      'molho de tomate',
+      'ketchup',
+      'macarrao',
+      'macarrão',
+      'penne',
+      'espaguete',
+      'spaghetti',
+      'parafuso',
+      'flocos de milho',
+      'filtro de papel',
+      'papel higienico',
+      'papel higiênico',
+      'papel toalha',
+      'guardanapo',
+      'detergente',
+      'sabao',
+      'sabão',
+      'amaciante',
+      'cafe',
+      'café',
+      'arroz',
+      'feijao',
+      'feijão',
+      'azeite',
+      'quinoa',
+      'palmito',
+      'creme de leite',
+      'leite',
+      'requeijao',
+      'requeijão',
+      'ovos',
+    ],
+  },
+];
+
 function canMoveStatus(fromStatus, toStatus) {
   if (!fromStatus || !toStatus) return false;
   if (fromStatus === toStatus) return false;
@@ -114,6 +157,12 @@ function categorizeItem(productName) {
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase();
+
+  for (const override of CATEGORY_PHRASE_OVERRIDES) {
+    if (override.phrases.some((phrase) => normalized.includes(phrase.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()))) {
+      return override.section;
+    }
+  }
 
   for (const section of SECTION_ORDER.slice(0, 3)) {
     if ((CATEGORY_KEYWORDS[section] || []).some((keyword) => normalized.includes(keyword))) {
@@ -172,6 +221,21 @@ function runWithViewTransition(updateFn) {
   document.startViewTransition(() => updateFn());
 }
 
+function getConversationDayLabel(dateValue) {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const current = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  if (current.getTime() === today.getTime()) return 'Hoje';
+  if (current.getTime() === yesterday.getTime()) return 'Ontem';
+  return date.toLocaleDateString('pt-BR');
+}
+
 function OrderCard({ order, nowMs, onOpen, onDragStart, onDragEnd }) {
   const isCompleted = order.status === 'COMPLETED';
   const elapsed = formatElapsedHhMmSs(order.createdAt, nowMs);
@@ -189,24 +253,24 @@ function OrderCard({ order, nowMs, onOpen, onDragStart, onDragEnd }) {
       draggable
       onDragStart={(e) => onDragStart(e, order.id)}
       onDragEnd={onDragEnd}
-      className="w-full cursor-pointer rounded-[10px] border border-[#B9C8D8] bg-[#F8FBFF] p-3 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-[#F2F7FD] hover:shadow-md"
+      className="w-full cursor-pointer rounded-[10px] border border-[#B9C8D8] bg-[#F8FBFF] p-2.5 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-[#F2F7FD] hover:shadow-md md:p-2 lg:p-3"
       style={{ viewTransitionName: `order-${order.id}` }}
       transition={{ type: 'spring', stiffness: 320, damping: 30 }}
     >
-      <div className="font-bold text-[#24303B]">#{order.displayOrderNumber ?? order.orderNumber} • {order.customer?.name || 'Cliente sem nome'}</div>
-      <div className="mt-0.5 text-xs text-[#5A6B7D]">{formatPhoneForDisplay(order.customer?.phoneE164 || order.customer?.phone)}</div>
+      <div className="text-[14px] font-bold text-[#24303B] md:text-[13px] lg:text-[14px]">#{order.displayOrderNumber ?? order.orderNumber} • {order.customer?.name || 'Cliente sem nome'}</div>
+      <div className="mt-0.5 text-[11px] text-[#5A6B7D] md:text-[10px] lg:text-xs">{formatPhoneForDisplay(order.customer?.phoneE164 || order.customer?.phone)}</div>
 
       {!isCompleted ? (
         <>
-          <div className="mt-2 space-y-0.5 text-[13px] text-[#24303B]">
+          <div className="mt-2 space-y-0.5 text-[12px] text-[#24303B] md:text-[11px] lg:text-[13px]">
             <div><strong>Endereço:</strong> {order.deliveryAddress || '-'}</div>
             <div><strong>Qtd. de Pedidos:</strong> {order.customer?.totalOrders ?? 0}</div>
             <div><strong>Tempo desde recebido:</strong> {elapsed}</div>
           </div>
 
           <div className="mt-2">
-            <div className="text-xs text-[#5A6B7D]">Lista de pedidos ({itemsPreview.length})</div>
-            <ul className="mt-1 space-y-1 text-[13px] text-[#24303B]">
+            <div className="text-[11px] text-[#5A6B7D] md:text-[10px] lg:text-xs">Lista de pedidos ({itemsPreview.length})</div>
+            <ul className="mt-1 space-y-1 text-[12px] text-[#24303B] md:text-[11px] lg:text-[13px]">
               {itemsPreview.map((item) => (
                 <li key={item.id} className="flex items-start gap-1.5">
                   <span className="text-[#647A90]">✓</span>
@@ -223,15 +287,31 @@ function OrderCard({ order, nowMs, onOpen, onDragStart, onDragEnd }) {
 
 function ChecklistList({ order, checkedMap, onToggle }) {
   const sections = useMemo(() => groupItemsBySection(order?.items || []), [order]);
+  const [collapsedBySection, setCollapsedBySection] = useState({});
 
   if (!order?.items?.length) return <div className="text-sm text-[#5A6B7D]">Sem itens neste pedido.</div>;
+
+  const toggleSection = (section) => {
+    setCollapsedBySection((current) => ({
+      ...current,
+      [section]: !current[section],
+    }));
+  };
 
   return (
     <div className="space-y-4">
       {sections.map(({ section, items }) => (
         <div key={section}>
-          <div className="mb-2 rounded-md bg-[#E7EDF4] px-2 py-1 text-sm font-bold text-[#2A3744]">{section}</div>
-          <div className="space-y-1">
+          <button
+            type="button"
+            onClick={() => toggleSection(section)}
+            className="mb-2 flex w-full items-center justify-between rounded-md bg-[#E7EDF4] px-2 py-1 text-left text-sm font-bold text-[#2A3744]"
+          >
+            <span>{section}</span>
+            <span className="text-xs text-[#4B5B6B]">{collapsedBySection[section] ? '▸' : '▾'}</span>
+          </button>
+          {!collapsedBySection[section] ? (
+            <div className="space-y-1">
             {items.map((item) => {
               const state = checkedMap[item.id] || 'pending';
               const checked = state === 'checked';
@@ -264,7 +344,8 @@ function ChecklistList({ order, checkedMap, onToggle }) {
                 </div>
               );
             })}
-          </div>
+            </div>
+          ) : null}
         </div>
       ))}
     </div>
@@ -272,6 +353,7 @@ function ChecklistList({ order, checkedMap, onToggle }) {
 }
 
 function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder, actionLoading, checkedMap, onToggleChecklist }) {
+  const [isConversationOpen, setIsConversationOpen] = useState(false);
   const [conversation, setConversation] = useState([]);
   const [conversationLoading, setConversationLoading] = useState(false);
   const [conversationLoadingMore, setConversationLoadingMore] = useState(false);
@@ -280,6 +362,9 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
   const [conversationError, setConversationError] = useState('');
   const [newMessageText, setNewMessageText] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const conversationContainerRef = useRef(null);
+  const pendingScrollModeRef = useRef(null);
+  const prependScrollStateRef = useRef({ scrollHeight: 0, scrollTop: 0 });
 
   const loadConversation = async ({ reset = false, todayOnly = true, before = null } = {}) => {
     if (!order?.id) return;
@@ -302,6 +387,14 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
       const page = data.messages || [];
       setConversationHasMore(Boolean(data.hasMore));
       setConversationNextBefore(data.nextBefore || null);
+      if (!reset) {
+        const el = conversationContainerRef.current;
+        prependScrollStateRef.current = {
+          scrollHeight: el?.scrollHeight ?? 0,
+          scrollTop: el?.scrollTop ?? 0,
+        };
+      }
+      pendingScrollModeRef.current = reset ? 'bottom' : 'prepend';
       setConversation((prev) => {
         if (reset) return page;
         const ids = new Set(prev.map((m) => m.id));
@@ -317,17 +410,35 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
   };
 
   useEffect(() => {
-    if (!order?.id) return;
+    if (!order?.id || !isConversationOpen) return;
     setConversation([]);
     setConversationHasMore(false);
     setConversationNextBefore(null);
     setConversationError('');
     setNewMessageText('');
     loadConversation({ reset: true, todayOnly: true });
-  }, [order?.id]);
+  }, [order?.id, isConversationOpen]);
 
   useEffect(() => {
-    if (!order?.id) return;
+    if (!isConversationOpen) return;
+    const el = conversationContainerRef.current;
+    if (!el) return;
+    const mode = pendingScrollModeRef.current;
+    if (!mode) return;
+
+    if (mode === 'bottom') {
+      el.scrollTop = el.scrollHeight;
+    } else if (mode === 'prepend') {
+      const prev = prependScrollStateRef.current;
+      const delta = el.scrollHeight - prev.scrollHeight;
+      el.scrollTop = Math.max(0, prev.scrollTop + delta);
+    }
+
+    pendingScrollModeRef.current = null;
+  }, [conversation, isConversationOpen]);
+
+  useEffect(() => {
+    if (!order?.id || !isConversationOpen) return;
     const es = new EventSource('/api/stream/realtime?topic=orders');
     let timer = null;
     es.onmessage = () => {
@@ -340,7 +451,7 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
       if (timer) clearTimeout(timer);
       es.close();
     };
-  }, [order?.id]);
+  }, [order?.id, isConversationOpen]);
 
   if (!order) return null;
 
@@ -348,10 +459,40 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
   const isCompleted = order.status === 'COMPLETED';
   const paymentStatus = order.paymentIntent ? 'Definido' : 'Pendente';
   const addressStatus = order.deliveryAddress ? order.deliveryAddress : 'Pendente';
+  const conversationBlocks = [];
+  let lastDayLabel = null;
+  for (const msg of conversation) {
+    const dayLabel = getConversationDayLabel(msg.createdAt);
+    if (dayLabel && dayLabel !== lastDayLabel) {
+      conversationBlocks.push(
+        <div key={`day-${msg.id}`} className="my-1 text-center text-[10px] font-semibold uppercase tracking-wide text-[#6A7B8C]">
+          ----- {dayLabel} -----
+        </div>,
+      );
+      lastDayLabel = dayLabel;
+    }
+
+    const isInbound = msg.direction === 'INBOUND';
+    const time = msg.createdAt
+      ? new Date(msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      : '--:--';
+    conversationBlocks.push(
+      <div key={msg.id} className={`flex ${isInbound ? 'justify-start' : 'justify-end'}`}>
+        <div
+          className={`max-w-[88%] rounded-lg px-3 py-2 text-sm ${isInbound ? 'bg-[#DCF8C6] text-[#233333]' : 'bg-[#E6F0FF] text-[#223344]'
+            }`}
+        >
+          <div className="whitespace-pre-wrap break-words">{msg.text || '[mensagem sem texto]'}</div>
+          <div className="mt-1 text-right text-[10px] text-[#657686]">{time}</div>
+        </div>
+      </div>,
+    );
+  }
 
   const handleConversationScroll = (event) => {
     const target = event.currentTarget;
     if (!conversationHasMore || conversationLoadingMore || conversationLoading) return;
+    if (target.scrollHeight <= target.clientHeight + 8) return;
     if (target.scrollTop <= 36) {
       loadConversation({
         reset: false,
@@ -375,6 +516,7 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || data.reason || 'Falha ao enviar mensagem');
       if (data.message) {
+        pendingScrollModeRef.current = 'bottom';
         setConversation((prev) => [...prev, data.message]);
       }
       setNewMessageText('');
@@ -387,17 +529,27 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
 
   return (
     <div onClick={onClose} className="fixed inset-0 z-[1000] flex items-center justify-center bg-[rgba(8,12,18,0.5)] p-3 backdrop-blur-sm">
-      <div onClick={(e) => e.stopPropagation()} className="h-[90vh] w-full max-w-[1280px] overflow-hidden rounded-xl border border-[#B9C8D8] bg-white p-4 md:p-5">
+      <div onClick={(e) => e.stopPropagation()} className="relative h-[90vh] w-full max-w-[1280px] overflow-hidden rounded-xl border border-[#B9C8D8] bg-white p-4 md:p-5">
         <div className="flex items-start justify-between gap-2">
           <div>
             <h2 className="m-0 text-xl font-bold text-[#24303B] md:text-2xl">Pedido #{order.displayOrderNumber ?? order.orderNumber} • {order.customer?.name || 'Cliente'}</h2>
             <div className="mt-1 text-sm text-[#5A6B7D]">{formatPhoneForDisplay(order.customer?.phoneE164 || order.customer?.phone)}</div>
           </div>
-          <button type="button" onClick={onClose} className="h-9 w-9 rounded-md border border-[#BC2028] bg-[#E84045] text-base font-bold text-white transition-transform duration-150 hover:scale-105" aria-label="Fechar modal">X</button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsConversationOpen(true)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#7C93AA] bg-[#EEF4FA] text-base text-[#2A3A4B] transition-transform duration-150 hover:scale-105"
+              aria-label="Abrir conversa"
+            >
+              💬
+            </button>
+            <button type="button" onClick={onClose} className="h-9 w-9 rounded-md border border-[#BC2028] bg-[#E84045] text-base font-bold text-white transition-transform duration-150 hover:scale-105" aria-label="Fechar modal">X</button>
+          </div>
         </div>
 
-        <div className="mt-4 grid h-[calc(90vh-106px)] gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-          <section className="min-h-0 overflow-y-auto pr-1">
+        <div className="mt-4 h-[calc(90vh-106px)]">
+          <section className="h-full min-h-0 overflow-y-auto pr-1">
             <div className="grid gap-2 text-sm text-[#24303B] md:grid-cols-2">
               <div><strong>Status:</strong> {getColumnByStatus(order.status).title}</div>
               <div><strong>Criado em:</strong> {formatDateTime(order.createdAt)}</div>
@@ -453,16 +605,27 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
               <ChecklistList order={order} checkedMap={checkedMap} onToggle={onToggleChecklist} />
             </div>
           </section>
+        </div>
 
-          <aside className="flex min-h-0 flex-col rounded-xl border border-[#C8D6E5] bg-[#F7FAFD] p-3">
+        {isConversationOpen ? (
+          <aside className="absolute bottom-4 right-4 top-[72px] z-10 flex w-[calc(100%-2rem)] max-w-[390px] min-h-0 flex-col rounded-xl border border-[#C8D6E5] bg-[#F7FAFD] p-3 shadow-xl">
             <div className="mb-2 flex items-center justify-between">
               <div className="text-sm font-bold text-[#24303B]">Conversa com cliente</div>
+              <button
+                type="button"
+                onClick={() => setIsConversationOpen(false)}
+                className="h-8 w-8 rounded-md border border-[#BC2028] bg-[#E84045] text-sm font-bold text-white transition-transform duration-150 hover:scale-105"
+                aria-label="Fechar conversa"
+              >
+                X
+              </button>
             </div>
             <div className="mb-2 text-xs text-[#5A6B7D]">
               Mostrando mensagens do dia. Role para cima para carregar anteriores.
             </div>
 
             <div
+              ref={conversationContainerRef}
               onScroll={handleConversationScroll}
               className="min-h-0 flex-1 overflow-auto rounded-md border border-[#D3DFEB] bg-white p-2"
             >
@@ -476,25 +639,7 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
                 <div className="text-xs text-[#5A6B7D]">Sem mensagens para este cliente.</div>
               ) : null}
 
-              <div className="grid gap-2">
-                {conversation.map((msg) => {
-                  const isInbound = msg.direction === 'INBOUND';
-                  const time = msg.createdAt
-                    ? new Date(msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-                    : '--:--';
-                  return (
-                    <div key={msg.id} className={`flex ${isInbound ? 'justify-start' : 'justify-end'}`}>
-                      <div
-                        className={`max-w-[88%] rounded-lg px-3 py-2 text-sm ${isInbound ? 'bg-[#DCF8C6] text-[#233333]' : 'bg-[#E6F0FF] text-[#223344]'
-                          }`}
-                      >
-                        <div className="whitespace-pre-wrap break-words">{msg.text || '[mensagem sem texto]'}</div>
-                        <div className="mt-1 text-right text-[10px] text-[#657686]">{time}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <div className="grid gap-2">{conversationBlocks}</div>
             </div>
 
             {conversationError ? (
@@ -519,7 +664,7 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
               </button>
             </div>
           </aside>
-        </div>
+        ) : null}
       </div>
     </div>
   );
@@ -749,7 +894,7 @@ export default function OrdersBoard() {
 
       {error ? <div className="mb-3 text-[#B00020]">{error}</div> : null}
 
-      <section className="flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-x-visible lg:grid-cols-3 2xl:grid-cols-5">
+      <section className="flex flex-nowrap gap-3 overflow-x-auto pb-2 xl:grid xl:grid-cols-3 xl:overflow-x-visible 2xl:grid-cols-5">
         {ORDER_COLUMNS.map((column) => {
           const items = grouped.get(column.status) || [];
           return (
@@ -757,7 +902,7 @@ export default function OrdersBoard() {
               key={column.status}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => handleColumnDrop(e, column.status)}
-              className="relative flex min-h-[540px] w-[86vw] min-w-[280px] max-w-[370px] shrink-0 flex-col rounded-xl border border-[#B9C8D8] bg-[#D9E2EC] sm:w-[360px] md:min-w-0 md:max-w-none md:w-auto md:shrink"
+              className="relative flex min-h-[540px] w-[86vw] min-w-[280px] max-w-[370px] shrink-0 flex-col rounded-xl border border-[#B9C8D8] bg-[#D9E2EC] sm:w-[320px] md:min-h-[500px] md:w-[248px] md:min-w-[248px] md:max-w-[248px] lg:min-h-[500px] lg:w-[232px] lg:min-w-[232px] lg:max-w-[232px] xl:min-h-[540px] xl:min-w-0 xl:max-w-none xl:w-auto xl:shrink"
             >
               <div className="flex justify-between rounded-t-xl px-3 py-2.5 text-sm font-bold text-[#F1F6FB]" style={{ background: column.accent }}>
                 <span>{column.title}</span>

@@ -67,6 +67,7 @@ async function createOrderFromDraftTx(tx, { draft, aggregate, closeReason }) {
   const orderNotes = buildOrderNotesFromAggregate(aggregate, closeReason);
   const interpretedText = buildOrderInterpretedText(aggregate);
   const rawMessage = buildAggregatedText(aggregate);
+  const aggregateAddress = aggregate?.delivery?.address ?? null;
 
   if (draft.orderId) {
     const existingOrder = await tx.order.findUnique({
@@ -83,7 +84,7 @@ async function createOrderFromDraftTx(tx, { draft, aggregate, closeReason }) {
       data: {
         rawMessage: [existingOrder.rawMessage, rawMessage].filter(Boolean).join('\n\n--- AMENDMENT ---\n\n') || null,
         interpretedText: interpretedText ?? existingOrder.interpretedText,
-        deliveryAddress: aggregate?.delivery?.address ?? existingOrder.deliveryAddress,
+        deliveryAddress: aggregateAddress ?? existingOrder.deliveryAddress,
         notes: [existingOrder.notes, orderNotes].filter(Boolean).join('\n\n') || null,
         items: items.length
           ? {
@@ -97,10 +98,22 @@ async function createOrderFromDraftTx(tx, { draft, aggregate, closeReason }) {
       },
     });
 
+    if (aggregateAddress) {
+      await tx.customer.update({
+        where: { id: draft.customerId },
+        data: { defaultDeliveryAddress: aggregateAddress },
+      });
+    }
+
     return updatedOrder;
   }
 
   if (items.length === 0) return null;
+
+  const customer = await tx.customer.findUnique({
+    where: { id: draft.customerId },
+    select: { firstOrderAt: true, defaultDeliveryAddress: true },
+  });
 
   const lastOrderWithAddress = await tx.order.findFirst({
     where: {
@@ -117,7 +130,7 @@ async function createOrderFromDraftTx(tx, { draft, aggregate, closeReason }) {
       customerId: draft.customerId,
       rawMessage,
       interpretedText,
-      deliveryAddress: aggregate?.delivery?.address ?? lastOrderWithAddress?.deliveryAddress ?? null,
+      deliveryAddress: aggregateAddress ?? customer?.defaultDeliveryAddress ?? lastOrderWithAddress?.deliveryAddress ?? null,
       notes: orderNotes,
       status: 'NEW_ORDER',
       items: {
@@ -137,17 +150,13 @@ async function createOrderFromDraftTx(tx, { draft, aggregate, closeReason }) {
     },
   });
 
-  const existingCustomer = await tx.customer.findUnique({
-    where: { id: draft.customerId },
-    select: { firstOrderAt: true },
-  });
-
   await tx.customer.update({
     where: { id: draft.customerId },
     data: {
       totalOrders: { increment: 1 },
       lastOrderAt: order.createdAt,
-      firstOrderAt: existingCustomer?.firstOrderAt ?? order.createdAt,
+      firstOrderAt: customer?.firstOrderAt ?? order.createdAt,
+      ...(aggregateAddress ? { defaultDeliveryAddress: aggregateAddress } : {}),
     },
   });
 
@@ -412,6 +421,14 @@ export async function upsertOrderDraftFromParsedInboundMessage({
     }
 
     const aggregate = draft.aggregatedData;
+
+    if (contribution.flags.hasDeliveryAddress && contribution.delivery?.address) {
+      await tx.customer.update({
+        where: { id: whatsappMessage.customerId },
+        data: { defaultDeliveryAddress: contribution.delivery.address },
+      });
+    }
+
     const shouldCloseEarly = shouldCloseDraftEarly(aggregate);
     if (!shouldCloseEarly) {
       return {

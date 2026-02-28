@@ -92,6 +92,28 @@ export async function listOrderConversationMessages({
 
   const hasMore = rows.length > safeLimit;
   const page = hasMore ? rows.slice(0, safeLimit) : rows;
+  let effectiveHasMore = hasMore;
+  let effectiveNextBefore = hasMore ? toIso(page[page.length - 1]?.createdAt) : null;
+
+  // When loading "today only", still allow scrolling to previous days.
+  if (!effectiveHasMore && todayOnly && page.length > 0) {
+    const oldestLoaded = page[page.length - 1]?.createdAt;
+    if (oldestLoaded) {
+      const olderExists = await prisma.whatsAppMessage.findFirst({
+        where: {
+          customerId: order.customerId,
+          createdAt: { lt: oldestLoaded },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, createdAt: true },
+      });
+      if (olderExists) {
+        effectiveHasMore = true;
+        effectiveNextBefore = toIso(oldestLoaded);
+      }
+    }
+  }
+
   const messages = page
     .map((row) => ({
       id: row.id,
@@ -114,8 +136,8 @@ export async function listOrderConversationMessages({
       customer: order.customer,
     },
     todayOnly: Boolean(todayOnly),
-    hasMore,
-    nextBefore: hasMore ? toIso(page[page.length - 1]?.createdAt) : null,
+    hasMore: effectiveHasMore,
+    nextBefore: effectiveNextBefore,
     messages,
   };
 }

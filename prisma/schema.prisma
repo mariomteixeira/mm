@@ -83,6 +83,7 @@ model Customer {
   name              String?
   phone             String                    @unique
   phoneE164         String?                   @unique
+  defaultDeliveryAddress String?
   whatsappOptInAt   DateTime?
   whatsappOptOutAt  DateTime?
   firstOrderAt      DateTime?
