@@ -133,6 +133,37 @@ function groupItemsBySection(items) {
   return SECTION_ORDER.map((section) => ({ section, items: sections.get(section) || [] })).filter((entry) => entry.items.length > 0);
 }
 
+function normalizeNotesForDisplay(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  let cleaned = raw
+    .replace(/\bNeighborhood:\s*[^.|]+[.|]?/gi, ' ')
+    .replace(/\bObservations?:\s*/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleaned) return '';
+
+  const sentenceCandidates = cleaned
+    .split('.')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (!sentenceCandidates.length) return cleaned;
+
+  const unique = [];
+  const seen = new Set();
+  for (const sentence of sentenceCandidates) {
+    const key = sentence.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(sentence);
+  }
+
+  return `${unique.join('. ')}${cleaned.endsWith('.') ? '.' : ''}`.trim();
+}
+
 function runWithViewTransition(updateFn) {
   if (typeof document === 'undefined' || typeof document.startViewTransition !== 'function') {
     updateFn();
@@ -210,9 +241,8 @@ function ChecklistList({ order, checkedMap, onToggle }) {
                   <button
                     type="button"
                     onClick={() => onToggle(item.id, 'checked')}
-                    className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded border text-xs font-bold ${
-                      checked ? 'border-[#2A7F62] bg-[#2A7F62] text-white' : 'border-[#B9C8D8] bg-white text-transparent'
-                    }`}
+                    className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded border text-xs font-bold ${checked ? 'border-[#2A7F62] bg-[#2A7F62] text-white' : 'border-[#B9C8D8] bg-white text-transparent'
+                      }`}
                     aria-label="Marcar item como separado"
                   >
                     {checked ? '✓' : ''}
@@ -225,9 +255,8 @@ function ChecklistList({ order, checkedMap, onToggle }) {
                   <button
                     type="button"
                     onClick={() => onToggle(item.id, 'missing')}
-                    className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded border text-xs font-bold ${
-                      missing ? 'border-[#BC2028] bg-[#E84045] text-white' : 'border-[#B9C8D8] bg-white text-[#9AA8B6]'
-                    }`}
+                    className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded border text-xs font-bold ${missing ? 'border-[#BC2028] bg-[#E84045] text-white' : 'border-[#B9C8D8] bg-white text-[#9AA8B6]'
+                      }`}
                     aria-label="Marcar item como indisponível"
                   >
                     X
@@ -243,16 +272,122 @@ function ChecklistList({ order, checkedMap, onToggle }) {
 }
 
 function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder, actionLoading, checkedMap, onToggleChecklist }) {
+  const [conversation, setConversation] = useState([]);
+  const [conversationLoading, setConversationLoading] = useState(false);
+  const [conversationLoadingMore, setConversationLoadingMore] = useState(false);
+  const [conversationHasMore, setConversationHasMore] = useState(false);
+  const [conversationNextBefore, setConversationNextBefore] = useState(null);
+  const [conversationError, setConversationError] = useState('');
+  const [newMessageText, setNewMessageText] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+
+  const loadConversation = async ({ reset = false, todayOnly = true, before = null } = {}) => {
+    if (!order?.id) return;
+    if (reset) {
+      setConversationLoading(true);
+      setConversationError('');
+    } else {
+      setConversationLoadingMore(true);
+    }
+
+    try {
+      const params = new URLSearchParams();
+      params.set('limit', '30');
+      params.set('todayOnly', todayOnly ? '1' : '0');
+      if (before) params.set('before', before);
+      const res = await fetch(`/api/orders/${order.id}/messages?${params.toString()}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || data.reason || 'Falha ao carregar conversa');
+
+      const page = data.messages || [];
+      setConversationHasMore(Boolean(data.hasMore));
+      setConversationNextBefore(data.nextBefore || null);
+      setConversation((prev) => {
+        if (reset) return page;
+        const ids = new Set(prev.map((m) => m.id));
+        const merged = [...page.filter((m) => !ids.has(m.id)), ...prev];
+        return merged;
+      });
+    } catch (error) {
+      setConversationError(error.message || 'Erro ao carregar conversa');
+    } finally {
+      setConversationLoading(false);
+      setConversationLoadingMore(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!order?.id) return;
+    setConversation([]);
+    setConversationHasMore(false);
+    setConversationNextBefore(null);
+    setConversationError('');
+    setNewMessageText('');
+    loadConversation({ reset: true, todayOnly: true });
+  }, [order?.id]);
+
+  useEffect(() => {
+    if (!order?.id) return;
+    const es = new EventSource('/api/stream/realtime?topic=orders');
+    let timer = null;
+    es.onmessage = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        loadConversation({ reset: true, todayOnly: true });
+      }, 160);
+    };
+    return () => {
+      if (timer) clearTimeout(timer);
+      es.close();
+    };
+  }, [order?.id]);
+
   if (!order) return null;
 
-  const notesText = String(order.notes || '').trim();
+  const notesText = normalizeNotesForDisplay(order.notes);
   const isCompleted = order.status === 'COMPLETED';
   const paymentStatus = order.paymentIntent ? 'Definido' : 'Pendente';
   const addressStatus = order.deliveryAddress ? order.deliveryAddress : 'Pendente';
 
+  const handleConversationScroll = (event) => {
+    const target = event.currentTarget;
+    if (!conversationHasMore || conversationLoadingMore || conversationLoading) return;
+    if (target.scrollTop <= 36) {
+      loadConversation({
+        reset: false,
+        todayOnly: false,
+        before: conversationNextBefore,
+      });
+    }
+  };
+
+  const sendMessage = async () => {
+    const text = String(newMessageText || '').trim();
+    if (!text || !order?.id) return;
+    setSendingMessage(true);
+    setConversationError('');
+    try {
+      const res = await fetch(`/api/orders/${order.id}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || data.reason || 'Falha ao enviar mensagem');
+      if (data.message) {
+        setConversation((prev) => [...prev, data.message]);
+      }
+      setNewMessageText('');
+    } catch (error) {
+      setConversationError(error.message || 'Erro ao enviar mensagem');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
   return (
     <div onClick={onClose} className="fixed inset-0 z-[1000] flex items-center justify-center bg-[rgba(8,12,18,0.5)] p-3 backdrop-blur-sm">
-      <div onClick={(e) => e.stopPropagation()} className="max-h-[90vh] w-full max-w-5xl overflow-auto rounded-xl border border-[#B9C8D8] bg-white p-4 md:p-5">
+      <div onClick={(e) => e.stopPropagation()} className="h-[90vh] w-full max-w-[1280px] overflow-hidden rounded-xl border border-[#B9C8D8] bg-white p-4 md:p-5">
         <div className="flex items-start justify-between gap-2">
           <div>
             <h2 className="m-0 text-xl font-bold text-[#24303B] md:text-2xl">Pedido #{order.displayOrderNumber ?? order.orderNumber} • {order.customer?.name || 'Cliente'}</h2>
@@ -261,60 +396,129 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
           <button type="button" onClick={onClose} className="h-9 w-9 rounded-md border border-[#BC2028] bg-[#E84045] text-base font-bold text-white transition-transform duration-150 hover:scale-105" aria-label="Fechar modal">X</button>
         </div>
 
-        <div className="mt-4 grid gap-2 text-sm text-[#24303B] md:grid-cols-2">
-          <div><strong>Status:</strong> {getColumnByStatus(order.status).title}</div>
-          <div><strong>Criado em:</strong> {formatDateTime(order.createdAt)}</div>
-          <div><strong>Endereço:</strong> {addressStatus}</div>
-          <div><strong>Pagamento:</strong> {paymentStatus}</div>
-          <div><strong>Qtd. de Pedidos:</strong> {order.customer?.totalOrders ?? 0}</div>
-          <div><strong>Atualizado em:</strong> {formatDateTime(order.updatedAt)}</div>
-          {notesText ? <div className="md:col-span-2"><strong>Observações:</strong> {notesText}</div> : null}
-        </div>
-
-        <div className="mt-4">
-          <div className="mb-2 text-sm font-bold text-[#24303B]">Mover pedido</div>
-          <div className="flex flex-wrap gap-2">
-            {ORDER_COLUMNS.map((column) => {
-              const active = order.status === column.status;
-              const allowed = canMoveStatus(order.status, column.status);
-              return (
-                <button
-                  key={column.status}
-                  type="button"
-                  disabled={active || !!actionLoading || !allowed}
-                  onClick={() => onMoveStatus(order.id, column.status)}
-                  className={`rounded-md border px-3 py-1 text-sm ${
-                    active
-                      ? 'border-transparent text-white transition-transform duration-150 hover:scale-[1.03]'
-                      : allowed
-                        ? 'border-[#B9C8D8] bg-[#F8FBFF] text-[#24303B] transition-transform duration-150 hover:scale-[1.03] hover:bg-[#F2F7FD] active:scale-[0.99]'
-                        : 'border-[#D0D7E0] bg-[#EEF2F6] text-[#A0ADBA]'
-                  } disabled:cursor-not-allowed disabled:opacity-60`}
-                  style={active ? { background: column.accent } : undefined}
-                >
-                  {column.title}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {!isCompleted ? (
-          <div className="mt-4">
-            <div className="mb-2 text-sm font-bold text-[#24303B]">Solicitar dados ao cliente</div>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" disabled={!!actionLoading} onClick={() => onAskQuestion(order.id, 'address')} className="rounded-md border border-[#B9C8D8] bg-[#F8FBFF] px-3 py-1 text-sm text-[#24303B] transition-transform duration-150 hover:scale-[1.03] hover:bg-[#F2F7FD] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60">Solicitar endereço</button>
-              <button type="button" disabled={!!actionLoading} onClick={() => onAskQuestion(order.id, 'payment')} className="rounded-md border border-[#B9C8D8] bg-[#F8FBFF] px-3 py-1 text-sm text-[#24303B] transition-transform duration-150 hover:scale-[1.03] hover:bg-[#F2F7FD] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60">Perguntar pagamento</button>
-              <button type="button" disabled={!!actionLoading} onClick={() => onCancelOrder(order.id)} className="rounded-md border border-[#BC2028] bg-[#E84045] px-3 py-1 text-sm text-white transition-transform duration-150 hover:scale-[1.03] hover:bg-[#D83A3F] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60">Cancelar pedido</button>
+        <div className="mt-4 grid h-[calc(90vh-106px)] gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+          <section className="min-h-0 overflow-y-auto pr-1">
+            <div className="grid gap-2 text-sm text-[#24303B] md:grid-cols-2">
+              <div><strong>Status:</strong> {getColumnByStatus(order.status).title}</div>
+              <div><strong>Criado em:</strong> {formatDateTime(order.createdAt)}</div>
+              <div><strong>Endereço:</strong> {addressStatus}</div>
+              <div><strong>Pagamento:</strong> {paymentStatus}</div>
+              <div><strong>Qtd. de Pedidos:</strong> {order.customer?.totalOrders ?? 0}</div>
+              <div><strong>Atualizado em:</strong> {formatDateTime(order.updatedAt)}</div>
+              {notesText ? <div className="md:col-span-2"><strong>Observações:</strong> {notesText}</div> : null}
             </div>
-          </div>
-        ) : null}
 
-        <div className="mt-4">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="font-bold text-[#24303B]">Checklist de itens ({order.items?.length || 0})</div>
-          </div>
-          <ChecklistList order={order} checkedMap={checkedMap} onToggle={onToggleChecklist} />
+            <div className="mt-4">
+              <div className="mb-2 text-sm font-bold text-[#24303B]">Mover pedido</div>
+              <div className="flex flex-wrap gap-2">
+                {ORDER_COLUMNS.map((column) => {
+                  const active = order.status === column.status;
+                  const allowed = canMoveStatus(order.status, column.status);
+                  return (
+                    <button
+                      key={column.status}
+                      type="button"
+                      disabled={active || !!actionLoading || !allowed}
+                      onClick={() => onMoveStatus(order.id, column.status)}
+                      className={`rounded-md border px-3 py-1 text-sm ${active
+                        ? 'border-transparent text-white transition-transform duration-150 hover:scale-[1.03]'
+                        : allowed
+                          ? 'border-[#B9C8D8] bg-[#F8FBFF] text-[#24303B] transition-transform duration-150 hover:scale-[1.03] hover:bg-[#F2F7FD] active:scale-[0.99]'
+                          : 'border-[#D0D7E0] bg-[#EEF2F6] text-[#A0ADBA]'
+                        } disabled:cursor-not-allowed disabled:opacity-60`}
+                      style={active ? { background: column.accent } : undefined}
+                    >
+                      {column.title}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {!isCompleted ? (
+              <div className="mt-4">
+                <div className="mb-2 text-sm font-bold text-[#24303B]">Solicitar dados ao cliente</div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" disabled={!!actionLoading} onClick={() => onAskQuestion(order.id, 'address')} className="rounded-md border border-[#B9C8D8] bg-[#F8FBFF] px-3 py-1 text-sm text-[#24303B] transition-transform duration-150 hover:scale-[1.03] hover:bg-[#F2F7FD] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60">Solicitar endereço</button>
+                  <button type="button" disabled={!!actionLoading} onClick={() => onAskQuestion(order.id, 'payment')} className="rounded-md border border-[#B9C8D8] bg-[#F8FBFF] px-3 py-1 text-sm text-[#24303B] transition-transform duration-150 hover:scale-[1.03] hover:bg-[#F2F7FD] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60">Perguntar pagamento</button>
+                  <button type="button" disabled={!!actionLoading} onClick={() => onCancelOrder(order.id)} className="rounded-md border border-[#BC2028] bg-[#E84045] px-3 py-1 text-sm text-white transition-transform duration-150 hover:scale-[1.03] hover:bg-[#D83A3F] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60">Cancelar pedido</button>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-4">
+              <div className="mb-2 flex items-center justify-between">
+                <div className="font-bold text-[#24303B]">Checklist de itens ({order.items?.length || 0})</div>
+              </div>
+              <ChecklistList order={order} checkedMap={checkedMap} onToggle={onToggleChecklist} />
+            </div>
+          </section>
+
+          <aside className="flex min-h-0 flex-col rounded-xl border border-[#C8D6E5] bg-[#F7FAFD] p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-sm font-bold text-[#24303B]">Conversa com cliente</div>
+            </div>
+            <div className="mb-2 text-xs text-[#5A6B7D]">
+              Mostrando mensagens do dia. Role para cima para carregar anteriores.
+            </div>
+
+            <div
+              onScroll={handleConversationScroll}
+              className="min-h-0 flex-1 overflow-auto rounded-md border border-[#D3DFEB] bg-white p-2"
+            >
+              {conversationLoading ? (
+                <div className="text-xs text-[#5A6B7D]">Carregando conversa...</div>
+              ) : null}
+              {conversationLoadingMore ? (
+                <div className="mb-2 text-center text-xs text-[#5A6B7D]">Carregando mensagens antigas...</div>
+              ) : null}
+              {!conversationLoading && !conversation.length ? (
+                <div className="text-xs text-[#5A6B7D]">Sem mensagens para este cliente.</div>
+              ) : null}
+
+              <div className="grid gap-2">
+                {conversation.map((msg) => {
+                  const isInbound = msg.direction === 'INBOUND';
+                  const time = msg.createdAt
+                    ? new Date(msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                    : '--:--';
+                  return (
+                    <div key={msg.id} className={`flex ${isInbound ? 'justify-start' : 'justify-end'}`}>
+                      <div
+                        className={`max-w-[88%] rounded-lg px-3 py-2 text-sm ${isInbound ? 'bg-[#DCF8C6] text-[#233333]' : 'bg-[#E6F0FF] text-[#223344]'
+                          }`}
+                      >
+                        <div className="whitespace-pre-wrap break-words">{msg.text || '[mensagem sem texto]'}</div>
+                        <div className="mt-1 text-right text-[10px] text-[#657686]">{time}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {conversationError ? (
+              <div className="mt-2 text-xs text-[#B00020]">{conversationError}</div>
+            ) : null}
+
+            <div className="mt-2 flex items-end gap-2">
+              <textarea
+                rows={2}
+                value={newMessageText}
+                onChange={(e) => setNewMessageText(e.target.value)}
+                placeholder="Digite uma mensagem..."
+                className="min-h-[56px] flex-1 resize-y rounded-md border border-[#B9C8D8] px-2 py-1.5 text-sm outline-none focus:border-[#7A99B8]"
+              />
+              <button
+                type="button"
+                onClick={sendMessage}
+                disabled={sendingMessage || !newMessageText.trim()}
+                className="rounded-md border border-[#B9C8D8] bg-[#F8FBFF] px-3 py-2 text-sm text-[#24303B] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {sendingMessage ? 'Enviando...' : 'Enviar'}
+              </button>
+            </div>
+          </aside>
         </div>
       </div>
     </div>
@@ -330,7 +534,6 @@ export default function OrdersBoard() {
   const [isClient, setIsClient] = useState(false);
   const [actionLoading, setActionLoading] = useState('');
   const [draggingOrderId, setDraggingOrderId] = useState(null);
-  const [realtimeEnabled, setRealtimeEnabled] = useState(true);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [checkedItemsByOrder, setCheckedItemsByOrder] = useState({});
 
@@ -360,11 +563,6 @@ export default function OrdersBoard() {
   }, []);
 
   useEffect(() => {
-    if (!realtimeEnabled) {
-      setRealtimeConnected(false);
-      return undefined;
-    }
-
     let closed = false;
     let refreshTimer = null;
     const es = new EventSource('/api/stream/realtime?topic=orders');
@@ -397,7 +595,7 @@ export default function OrdersBoard() {
       if (refreshTimer) clearTimeout(refreshTimer);
       es.close();
     };
-  }, [realtimeEnabled, actionLoading]);
+  }, [actionLoading]);
 
   async function moveOrderStatus(orderId, toStatus) {
     if (!orderId || !toStatus) return;
@@ -532,25 +730,35 @@ export default function OrdersBoard() {
           <div className="m-0 text-xl font-bold text-[#24303B] md:text-2xl">{businessConfig.establishmentName}</div>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <span className="text-xs text-[#5A6B7D]" suppressHydrationWarning>Agora: {isClient ? new Date(nowMs).toLocaleTimeString('pt-BR') : '--:--:--'}</span>
-          <label className="flex items-center gap-1 text-xs text-[#5A6B7D]">
-            <input type="checkbox" checked={realtimeEnabled} onChange={(e) => setRealtimeEnabled(e.target.checked)} />
-            Tempo real
-          </label>
-          <span className="text-xs text-[#5A6B7D]">
-            {realtimeEnabled ? (realtimeConnected ? 'Conectado' : 'Reconectando...') : 'Desligado'}
+          <span className="text-xs text-[#5A6B7D]" suppressHydrationWarning>
+            {isClient
+              ? `${new Date(nowMs).toLocaleDateString('pt-BR')} • ${new Date(nowMs).toLocaleTimeString('pt-BR')}`
+              : '--/--/---- • --:--:--'}
           </span>
-          <button type="button" onClick={loadOrders} disabled={loading} className="rounded-md border border-[#B9C8D8] bg-[#F8FBFF] px-3 py-1 text-sm text-[#24303B] transition-transform duration-150 hover:scale-[1.03] active:scale-[0.99] disabled:opacity-60">{loading ? 'Carregando...' : 'Atualizar'}</button>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${realtimeConnected ? 'bg-[#EAF8EF] text-[#1E7A3B]' : 'bg-[#FDECEC] text-[#B42318]'
+              }`}
+          >
+            {!realtimeConnected ? (
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#B42318] border-t-transparent" />
+            ) : null}
+            {realtimeConnected ? 'Conectado' : 'Reconectando'}
+          </span>
         </div>
       </div>
 
       {error ? <div className="mb-3 text-[#B00020]">{error}</div> : null}
 
-      <section className="grid auto-cols-[minmax(280px,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2">
+      <section className="flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-x-visible lg:grid-cols-3 2xl:grid-cols-5">
         {ORDER_COLUMNS.map((column) => {
           const items = grouped.get(column.status) || [];
           return (
-            <div key={column.status} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleColumnDrop(e, column.status)} className="flex min-h-[540px] w-[85vw] min-w-[280px] max-w-[370px] shrink-0 flex-col rounded-xl border border-[#B9C8D8] bg-[#D9E2EC] md:w-[340px]">
+            <div
+              key={column.status}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => handleColumnDrop(e, column.status)}
+              className="relative flex min-h-[540px] w-[86vw] min-w-[280px] max-w-[370px] shrink-0 flex-col rounded-xl border border-[#B9C8D8] bg-[#D9E2EC] sm:w-[360px] md:min-w-0 md:max-w-none md:w-auto md:shrink"
+            >
               <div className="flex justify-between rounded-t-xl px-3 py-2.5 text-sm font-bold text-[#F1F6FB]" style={{ background: column.accent }}>
                 <span>{column.title}</span>
                 <span>{items.length}</span>

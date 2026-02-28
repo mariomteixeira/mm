@@ -18,12 +18,31 @@ function parseOrderInterpretedText(value) {
   }
 }
 
-export async function listOrders({ status = 'ALL', limit = 100 } = {}) {
+const SAO_PAULO_UTC_OFFSET_HOURS = 3;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function getSaoPauloDayRange(now = new Date()) {
+  // Brazil currently runs Sao Paulo at UTC-03 without DST.
+  const shifted = new Date(now.getTime() - SAO_PAULO_UTC_OFFSET_HOURS * 60 * 60 * 1000);
+  const year = shifted.getUTCFullYear();
+  const month = shifted.getUTCMonth();
+  const day = shifted.getUTCDate();
+  const startUtc = new Date(Date.UTC(year, month, day, SAO_PAULO_UTC_OFFSET_HOURS, 0, 0, 0));
+  const endUtc = new Date(startUtc.getTime() + DAY_MS);
+  return { startUtc, endUtc };
+}
+
+export async function listOrders({ status = 'ALL', limit = 100, todayOnly = true } = {}) {
   const normalizedStatus = String(status || 'ALL').toUpperCase();
-  const where =
+  const dayRange = todayOnly ? getSaoPauloDayRange() : null;
+  const where = todayOnly ? { createdAt: { gte: dayRange.startUtc, lt: dayRange.endUtc } } : {};
+
+  Object.assign(
+    where,
     normalizedStatus === 'ALL'
       ? { status: { in: ['NEW_ORDER', 'IN_PICKING', 'WAITING_COURIER', 'OUT_FOR_DELIVERY', 'COMPLETED'] } }
-      : { status: normalizedStatus };
+      : { status: normalizedStatus },
+  );
 
   const orders = await prisma.order.findMany({
     where,

@@ -60,7 +60,7 @@ function DraftCard({ draft, nowMs, onAction }) {
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
         <div>
-        <div style={{ fontWeight: 700 }}>
+          <div style={{ fontWeight: 700 }}>
             {draft.customer?.name || 'Cliente sem nome'}{' '}
             <span style={{ color: '#666', fontWeight: 400 }}>
               {draft.customer?.phoneE164 || draft.customer?.phone || ''}
@@ -218,7 +218,6 @@ export default function OrderDraftPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [lastFetchAt, setLastFetchAt] = useState(null);
-  const [realtimeEnabled, setRealtimeEnabled] = useState(true);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
   const [actionLoading, setActionLoading] = useState('');
@@ -238,8 +237,8 @@ export default function OrderDraftPage() {
       const visibleDrafts =
         statusFilter === 'ALL'
           ? rawDrafts.filter(
-              (d) => d.status !== 'CANCELED' && !(d.status === 'COMMITTED' && d.order?.status === 'CANCELED'),
-            )
+            (d) => d.status !== 'CANCELED' && !(d.status === 'COMMITTED' && d.order?.status === 'CANCELED'),
+          )
           : rawDrafts;
       setDrafts(visibleDrafts);
       setLastFetchAt(new Date().toISOString());
@@ -329,11 +328,6 @@ export default function OrderDraftPage() {
   }, []);
 
   useEffect(() => {
-    if (!realtimeEnabled) {
-      setRealtimeConnected(false);
-      return undefined;
-    }
-
     let closed = false;
     let refreshTimer = null;
     const es = new EventSource('/api/stream/realtime?topic=orders-drafts');
@@ -366,7 +360,7 @@ export default function OrderDraftPage() {
       if (refreshTimer) clearTimeout(refreshTimer);
       es.close();
     };
-  }, [realtimeEnabled, statusFilter]);
+  }, [statusFilter]);
 
   const grouped = useMemo(() => {
     const map = new Map();
@@ -402,19 +396,36 @@ export default function OrderDraftPage() {
             <option value="EXPIRED">EXPIRED</option>
           </select>
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input
-            type="checkbox"
-            checked={realtimeEnabled}
-            onChange={(e) => setRealtimeEnabled(e.target.checked)}
-          />
-          Tempo real
-        </label>
-        <span style={{ fontSize: 12, color: '#666' }}>
-          {realtimeEnabled ? (realtimeConnected ? 'Conectado' : 'Reconectando...') : 'Desligado'}
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            borderRadius: 999,
+            padding: '4px 8px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            background: realtimeConnected ? '#EAF8EF' : '#FDECEC',
+            color: realtimeConnected ? '#1E7A3B' : '#B42318',
+          }}
+        >
+          {!realtimeConnected ? (
+            <span
+              className="animate-spin"
+              style={{
+                width: 12,
+                height: 12,
+                border: '2px solid #B42318',
+                borderTopColor: 'transparent',
+                borderRadius: '50%',
+                display: 'inline-block',
+              }}
+            />
+          ) : null}
+          {realtimeConnected ? 'Conectado' : 'Reconectando'}
         </span>
         <span style={{ fontSize: 12, color: '#666' }} suppressHydrationWarning>
-          Agora: {isClient ? new Date(nowMs).toLocaleTimeString('pt-BR') : '--:--:--'} • Última atualização: {isClient ? formatDateTime(lastFetchAt) : '-'}
+          {isClient ? new Date(nowMs).toLocaleTimeString('pt-BR') : '--:--:--'} • Última atualização: {isClient ? formatDateTime(lastFetchAt) : '-'}
         </span>
         {actionLoading ? <span style={{ fontSize: 12, color: '#666' }}>Executando: {actionLoading}</span> : null}
       </div>

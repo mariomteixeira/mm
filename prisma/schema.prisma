@@ -256,96 +256,6 @@ model CampaignRecipient {
   @@index([status])
   @@index([status, createdAt])
   @@index([customerId, createdAt])
-model OrderItem {
-  id               String   @id @default(cuid())
-  orderId          String
-  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId        String?
-  product          Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  productName      String
-  quantity         Float
-  unit             String?
-  unitPriceCents   Int?
-  createdAt        DateTime @default(now())
-
-  @@index([productId])
-  @@index([productName])
-}
-
-model StatusHistory {
-  id              String       @id @default(cuid())
-  orderId         String
-  order           Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  changedByEmployeeId String?
-  changedByEmployee Employee?  @relation(fields: [changedByEmployeeId], references: [id], onDelete: SetNull)
-  fromStatus      OrderStatus?
-  toStatus        OrderStatus
-  changedBy       String?
-  createdAt       DateTime     @default(now())
-
-  @@index([orderId, createdAt])
-}
-
-model CustomerProductAffinity {
-  id              String    @id @default(cuid())
-  customerId      String
-  customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  productId       String
-  product         Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  firstPurchasedAt DateTime
-  lastPurchasedAt DateTime
-  purchaseCount   Int       @default(1)
-  totalQuantity   Float     @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  @@unique([customerId, productId])
-  @@index([productId, purchaseCount])
-  @@index([lastPurchasedAt])
-}
-
-model Campaign {
-  id               String             @id @default(cuid())
-  name             String
-  description      String?
-  targetProductId  String?
-  targetProduct    Product?           @relation(fields: [targetProductId], references: [id], onDelete: SetNull)
-  whatsappTemplateId String?
-  whatsappTemplate WhatsAppTemplate?  @relation(fields: [whatsappTemplateId], references: [id], onDelete: SetNull)
-  templateVariables Json?
-  messageTextFallback String?
-  status           CampaignStatus     @default(DRAFT)
-  scheduledAt      DateTime?
-  startedAt        DateTime?
-  finishedAt       DateTime?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  recipients       CampaignRecipient[]
-  whatsappMessages WhatsAppMessage[]
-
-  @@index([status, scheduledAt])
-  @@index([targetProductId])
-  @@index([whatsappTemplateId])
-}
-
-model CampaignRecipient {
-  id               String                  @id @default(cuid())
-  campaignId       String
-  campaign         Campaign                @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  customerId       String
-  customer         Customer                @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  status           CampaignRecipientStatus @default(PENDING)
-  channel          String                  @default("WHATSAPP")
-  sentAt           DateTime?
-  failureReason    String?
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @updatedAt
-  whatsappMessages WhatsAppMessage[]
-
-  @@unique([campaignId, customerId])
-  @@index([status])
-  @@index([status, createdAt])
-  @@index([customerId, createdAt])
 }
 
 model WhatsAppTemplate {
@@ -479,26 +389,6 @@ model WhatsAppMessageEvent {
   payload             Json?
   createdAt           DateTime              @default(now())
 
-  @@index([whatsappMessageId, createdAt])
-  @@index([providerMessageId, createdAt])
-}
-
-model WhatsAppConversationWindow {
-  id                   String             @id @default(cuid())
-  customerId           String
-  customer             Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  openedByDirection    WhatsAppDirection
-  openedByMessageId    String?
-  openedAt             DateTime
-  closesAt             DateTime
-  closedAt             DateTime?
-  isOpen               Boolean            @default(true)
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  messages             WhatsAppMessage[]
-
-  @@index([customerId, isOpen])
-  @@index([closesAt, isOpen])
   @@index([whatsappMessageId, createdAt])
   @@index([providerMessageId, createdAt])
 }

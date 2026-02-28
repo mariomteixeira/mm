@@ -8,10 +8,14 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || 'ALL';
     const limit = Number(searchParams.get('limit') || '100');
-    const orders = await listOrders({ status, limit });
+    const todayOnlyParam = searchParams.get('todayOnly');
+    const todayOnly =
+      todayOnlyParam == null ? true : todayOnlyParam === '1' || todayOnlyParam.toLowerCase() === 'true';
+    const orders = await listOrders({ status, limit, todayOnly });
     return NextResponse.json({
       ok: true,
       status,
+      todayOnly,
       count: orders.length,
       orders,
     });
@@ -22,4 +26,3 @@ export async function GET(request) {
     );
   }
 }
-

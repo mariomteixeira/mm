@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { prisma } from '../db/prisma-client.js';
 import { getPhoneLookupVariants, normalizePhoneDigits, normalizePhoneE164 } from '../shared/utils/phone.js';
+import { publishRealtimeEvent } from '../realtime/realtime-events.js';
 import {
   buildMessageStatusTimestamps,
   mapProviderStatusToDbStatus,
@@ -234,6 +235,16 @@ export async function persistInboundMessageWebhook(normalizedMessage) {
       payload: normalizedMessage.raw ?? normalizedMessage,
     },
   });
+
+  await publishRealtimeEvent({
+    topic: 'orders',
+    event: 'inbound_message_received',
+    payload: {
+      customerId: customer.id,
+      messageId: created.id,
+      providerMessageId: created.providerMessageId,
+    },
+  }).catch(() => {});
 
   return {
     skipped: false,
