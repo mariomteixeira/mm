@@ -1,10 +1,35 @@
 import crypto from 'node:crypto';
 import { prisma } from '../db/prisma-client.js';
-import { normalizePhoneDigits, normalizePhoneE164 } from '../shared/utils/phone.js';
+import { getPhoneLookupVariants, normalizePhoneDigits, normalizePhoneE164 } from '../shared/utils/phone.js';
 import {
   buildMessageStatusTimestamps,
   mapProviderStatusToDbStatus,
 } from './status-mapping.js';
+
+function buildInboundMessageContent(normalizedMessage) {
+  const asset = normalizedMessage.asset
+    ? {
+        kind: normalizedMessage.asset.kind,
+        mediaId: normalizedMessage.asset.mediaId,
+        mimeType: normalizedMessage.asset.mimeType,
+        sha256: normalizedMessage.asset.sha256,
+        url: normalizedMessage.asset.url, // temporary URL from Meta webhook payload
+        isVoice: normalizedMessage.asset.isVoice,
+        caption: normalizedMessage.asset.caption,
+        filename: normalizedMessage.asset.filename,
+      }
+    : null;
+
+  return {
+    messageType: normalizedMessage.messageType,
+    text: normalizedMessage.textBody ?? null,
+    asset,
+    providerTimestampIso: normalizedMessage.providerTimestampIso ?? null,
+    fromPhoneE164: normalizedMessage.fromPhoneE164 ?? null,
+    toBusinessPhoneE164: normalizedMessage.toBusinessPhoneE164 ?? null,
+    phoneNumberId: normalizedMessage.phoneNumberId ?? null,
+  };
+}
 
 function eventKeyForStatus(statusEvent) {
   const base = [
@@ -20,6 +45,7 @@ function eventKeyForStatus(statusEvent) {
 async function ensureCustomerByPhone({ name, phoneE164 }) {
   const phoneDigits = normalizePhoneDigits(phoneE164);
   const normalizedE164 = normalizePhoneE164(phoneE164);
+  const lookup = getPhoneLookupVariants(phoneE164);
 
   if (!phoneDigits) {
     throw new Error('Cannot ensure customer without phone');
@@ -27,7 +53,10 @@ async function ensureCustomerByPhone({ name, phoneE164 }) {
 
   const existing = await prisma.customer.findFirst({
     where: {
-      OR: [{ phoneE164: normalizedE164 }, { phone: phoneDigits }],
+      OR: [
+        { phoneE164: { in: lookup.e164.length ? lookup.e164 : [normalizedE164] } },
+        { phone: { in: lookup.digits.length ? lookup.digits : [phoneDigits] } },
+      ],
     },
   });
 
@@ -193,16 +222,45 @@ export async function persistInboundMessageWebhook(normalizedMessage) {
       deliveredAt: normalizedMessage.providerTimestampIso
         ? new Date(normalizedMessage.providerTimestampIso)
         : null,
-      content: {
-        messageType: normalizedMessage.messageType,
-        textBody: normalizedMessage.textBody,
-        asset: normalizedMessage.asset,
-        raw: normalizedMessage.raw,
-      },
+      content: buildInboundMessageContent(normalizedMessage),
     },
   });
 
-  return { skipped: false, messageId: created.id, providerMessageId: created.providerMessageId };
+  await prisma.whatsAppMessageRawPayload.create({
+    data: {
+      whatsappMessageId: created.id,
+      source: 'WEBHOOK',
+      payloadType: 'INBOUND_MESSAGE',
+      payload: normalizedMessage.raw ?? normalizedMessage,
+    },
+  });
+
+  return {
+    skipped: false,
+    messageId: created.id,
+    providerMessageId: created.providerMessageId,
+    customerId: customer.id,
+  };
+}
+
+export async function appendWhatsAppMessageRawPayload({
+  whatsappMessageId,
+  source = 'SYSTEM',
+  payloadType = 'GENERIC',
+  payload,
+}) {
+  if (!whatsappMessageId) {
+    throw new Error('Missing whatsappMessageId');
+  }
+
+  return prisma.whatsAppMessageRawPayload.create({
+    data: {
+      whatsappMessageId,
+      source,
+      payloadType,
+      payload,
+    },
+  });
 }
 
 export async function persistOutboundMessageAccepted({

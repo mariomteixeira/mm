@@ -1,13 +1,10 @@
+import { normalizePhoneE164 } from '../shared/utils/phone.js';
+
 function toIsoFromUnixSeconds(value) {
   if (!value) return null;
   const seconds = Number(value);
   if (!Number.isFinite(seconds)) return null;
   return new Date(seconds * 1000).toISOString();
-}
-
-function normalizePhoneE164(raw) {
-  if (!raw) return null;
-  return raw.startsWith('+') ? raw : `+${raw}`;
 }
 
 function buildAssetFromMessage(message) {

@@ -1,0 +1,106 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mm
+      POSTGRES_USER: mm
+      POSTGRES_PASSWORD: mm
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mm -d mm"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: mm-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mm-app
+    restart: unless-stopped
+    command: sh -lc "npm ci && npm run db:generate && npm run db:migrate:deploy && npm run dev -- --hostname 0.0.0.0 --port 3000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://mm:mm@postgres:5432/mm?schema=public
+      REDIS_URL: redis://redis:6379
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - app_node_modules_app:/app/node_modules
+
+  worker-llm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mm-worker-llm
+    restart: unless-stopped
+    command: sh -lc "npm ci && npm run db:generate && npm run worker:llm"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://mm:mm@postgres:5432/mm?schema=public
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - app_node_modules_worker_llm:/app/node_modules
+
+  worker-drafts:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mm-worker-drafts
+    restart: unless-stopped
+    command: sh -lc "npm ci && npm run db:generate && npm run worker:drafts"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://mm:mm@postgres:5432/mm?schema=public
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - app_node_modules_worker_drafts:/app/node_modules
+
+volumes:
+  postgres_data:
+  redis_data:
+  app_node_modules_app:
+  app_node_modules_worker_llm:
+  app_node_modules_worker_drafts:

@@ -1,4 +1,9 @@
 import { logJson } from '../shared/logger/json-logger.js';
+import {
+  writeWebhookErrorFileLog,
+  writeWebhookReceivedFileLog,
+} from '../shared/logger/webhook-file-logger.js';
+import { serializeErrorForLog } from '../shared/errors/serialize-error.js';
 import { getRequestMeta, maskToken } from './http-request-meta.js';
 import { verifyWhatsAppSignature } from '../whatsapp/signature.js';
 import { normalizeWhatsAppWebhookPayload } from '../whatsapp/normalize-webhook-payload.js';
@@ -22,7 +27,7 @@ export function handleWhatsAppWebhookVerify(request) {
     return { ok: true, challenge: challenge ?? 'ok' };
   }
 
-  logJson('error', 'whatsapp_webhook_verify_failed', {
+  const verifyError = {
     ...meta,
     mode,
     reason: !mode
@@ -36,7 +41,14 @@ export function handleWhatsAppWebhookVerify(request) {
             : 'token_mismatch',
     providedTokenMasked: maskToken(token),
     expectedTokenMasked: maskToken(expectedToken),
-  });
+  };
+
+  logJson('error', 'whatsapp_webhook_verify_failed', verifyError);
+  writeWebhookErrorFileLog({
+    event: 'whatsapp_webhook_verify_failed',
+    requestMeta: meta,
+    payload: verifyError,
+  }).catch(() => {});
 
   return { ok: false };
 }
@@ -54,6 +66,16 @@ export async function handleWhatsAppWebhookEvent({ request, rawBody, payload }) 
     signatureOk: signature.ok,
     signatureReason: signature.reason,
   });
+  if (!signature.ok) {
+    await writeWebhookErrorFileLog({
+      event: 'whatsapp_webhook_signature_check',
+      requestMeta: meta,
+      payload: {
+        signature,
+        metaSignature: meta.metaSignature,
+      },
+    }).catch(() => {});
+  }
 
   const normalized = normalizeWhatsAppWebhookPayload(payload);
 
@@ -61,7 +83,10 @@ export async function handleWhatsAppWebhookEvent({ request, rawBody, payload }) 
     ...meta,
     object: payload?.object ?? null,
     entryCount: Array.isArray(payload?.entry) ? payload.entry.length : 0,
-    payload,
+    hasMessages: normalized.stats.messages > 0,
+    hasStatuses: normalized.stats.statuses > 0,
+    hasAssets: normalized.stats.assets > 0,
+    stats: normalized.stats,
   });
 
   logJson('info', 'whatsapp_webhook_payload_normalized', {
@@ -86,8 +111,24 @@ export async function handleWhatsAppWebhookEvent({ request, rawBody, payload }) 
       conversationOriginType: status.conversationOriginType,
       conversationExpirationIso: status.conversationExpirationIso,
     })),
-    assets: normalized.assets,
+    assets: normalized.assets.map((asset) => ({
+      kind: asset.kind,
+      messageId: asset.messageId,
+      mediaId: asset.mediaId,
+      mimeType: asset.mimeType,
+      isVoice: asset.isVoice,
+    })),
   });
+
+  await writeWebhookReceivedFileLog({
+    event: 'whatsapp_webhook_event_received',
+    requestMeta: meta,
+    payload: {
+      signature,
+      rawPayload: payload,
+      normalized,
+    },
+  }).catch(() => {});
 
   try {
     const processing = await processNormalizedWhatsAppWebhook(normalized);
@@ -96,12 +137,22 @@ export async function handleWhatsAppWebhookEvent({ request, rawBody, payload }) 
       processing,
     });
   } catch (error) {
-    logJson('error', 'whatsapp_webhook_persistence_error', {
+    const errorPayload = {
       ...meta,
-      errorName: error?.name ?? 'Error',
-      errorMessage: error?.message ?? 'Unknown error',
-      errorStack: error?.stack ?? null,
-    });
+      ...serializeErrorForLog(error, {
+        messageLines: 6,
+        stackLines: 6,
+      }),
+    };
+    logJson('error', 'whatsapp_webhook_persistence_error', errorPayload);
+    await writeWebhookErrorFileLog({
+      event: 'whatsapp_webhook_persistence_error',
+      requestMeta: meta,
+      payload: {
+        ...errorPayload,
+        normalizedStats: normalized.stats,
+      },
+    }).catch(() => {});
   }
 
   return {
