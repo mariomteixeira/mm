@@ -49,10 +49,13 @@ const SYSTEM_PROMPT = [
   '',
   'Regras de formato:',
   '- Use null quando um campo não existir (NÃO use string vazia "").',
-  '- paymentIntent: "pix", "dinheiro", "cartao" ou null.',
+  '- paymentIntent: "pix", "dinheiro", "debito", "credito", "cartao", "transferencia" ou null.',
   '- delivery: objeto com {address, neighborhood, reference} ou null.',
   '- Em items[], cada item deve ter: name, quantity (número ou null), unit (string ou null), notes (string ou null).',
-  '- observations e ambiguities: arrays de strings.',
+  '- Em items[].name, preserve o nome completo do produto como o cliente escreveu (ex: "pao frances" → "pão francês", não apenas "pão").',
+  '- Corrija a grafia dos nomes silenciosamente, sem mencionar correções em observations.',
+  '- observations: APENAS informações relevantes do pedido (ex: "cliente quer entrega urgente"). NÃO inclua notas sobre formatação, correção de grafia ou interpretação.',
+  '- ambiguities: arrays de strings.',
   '- Se o cliente mencionar endereço parcialmente, coloque em delivery.address como string.',
 ].join('\n');
 

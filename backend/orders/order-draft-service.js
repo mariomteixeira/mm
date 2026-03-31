@@ -94,9 +94,13 @@ async function createOrderFromDraftTx(tx, { draft, aggregate, closeReason }) {
       items: [...(existingParsed.items ?? []), ...(aggregate?.items ?? [])],
       delivery: aggregate?.delivery?.address ? aggregate.delivery : (existingParsed.delivery ?? null),
       paymentIntent: aggregate?.paymentIntent ?? existingParsed.paymentIntent ?? null,
-      observations: [...(existingParsed.observations ?? []), ...(aggregate?.observations ?? [])],
-      ambiguities: [...(existingParsed.ambiguities ?? []), ...(aggregate?.ambiguities ?? [])],
+      observations: [...new Set([...(existingParsed.observations ?? []), ...(aggregate?.observations ?? [])])],
+      ambiguities: [...new Set([...(existingParsed.ambiguities ?? []), ...(aggregate?.ambiguities ?? [])])],
     });
+
+    const amendmentNotes = orderNotes && existingOrder.notes && existingOrder.notes.includes(orderNotes)
+      ? null
+      : orderNotes;
 
     const updatedOrder = await tx.order.update({
       where: { id: existingOrder.id },
@@ -104,7 +108,7 @@ async function createOrderFromDraftTx(tx, { draft, aggregate, closeReason }) {
         rawMessage: [existingOrder.rawMessage, rawMessage].filter(Boolean).join('\n\n--- AMENDMENT ---\n\n') || null,
         interpretedText: mergedInterpretedText ?? existingOrder.interpretedText,
         deliveryAddress: aggregateAddress ?? existingOrder.deliveryAddress,
-        notes: [existingOrder.notes, orderNotes].filter(Boolean).join('\n\n') || null,
+        notes: [existingOrder.notes, amendmentNotes].filter(Boolean).join('\n') || null,
         items: newItems.length
           ? {
               create: newItems.map((item) => ({
