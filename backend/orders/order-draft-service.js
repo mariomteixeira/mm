@@ -2,6 +2,8 @@ import { prisma } from '../db/prisma-client.js';
 import { logJson } from '../shared/logger/json-logger.js';
 import { getOrderDraftConfig } from './order-draft-config.js';
 import { publishRealtimeEvent } from '../realtime/realtime-events.js';
+import { sendWhatsAppTextMessage } from '../whatsapp/send-text-message.js';
+import { normalizePhoneE164 } from '../shared/utils/phone.js';
 import {
   buildDraftContribution,
   buildDraftReviewReason,
@@ -527,6 +529,24 @@ export async function upsertOrderDraftFromParsedInboundMessage({
         event: 'order_created_from_draft',
         payload: { orderId: action.orderId },
       }).catch(() => {});
+    }
+
+    if (action.action === 'created_post_commit_amendment_draft' && action.linkedOrderId) {
+      try {
+        const amendedOrder = await prisma.order.findUnique({
+          where: { id: action.linkedOrderId },
+          include: { customer: { select: { phone: true, phoneE164: true, name: true } } },
+        });
+        if (amendedOrder && ['IN_PICKING', 'NEW_ORDER'].includes(amendedOrder.status)) {
+          const to = normalizePhoneE164(amendedOrder.customer?.phoneE164 ?? amendedOrder.customer?.phone);
+          if (to) {
+            const msg = amendedOrder.status === 'IN_PICKING'
+              ? 'Recebemos sua alteração! Seu pedido já está sendo separado, vamos incluir assim que um separador visualizar. 🛒'
+              : 'Recebemos sua alteração e ela foi adicionada ao seu pedido! ✅';
+            await sendWhatsAppTextMessage({ to, body: msg, customerName: amendedOrder.customer?.name ?? null });
+          }
+        }
+      } catch {}
     }
   }
 

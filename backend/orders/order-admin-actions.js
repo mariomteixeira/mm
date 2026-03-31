@@ -230,9 +230,9 @@ function buildPromptMessageByType(type) {
 }
 
 function buildStatusMessage(status) {
-  if (status === 'IN_PICKING') return 'Seu pedido está em separação 🛒';
-  if (status === 'WAITING_COURIER') return 'Seu pedido foi separado e está aguardando sair para entrega 🚚';
-  if (status === 'OUT_FOR_DELIVERY') return 'Seu pedido saiu para entrega e logo chegará 🛵';
+  if (status === 'IN_PICKING') return 'Recebemos seu pedido e ele já está sendo separado! Assim que ficar pronto, avisamos você. 🛒';
+  if (status === 'WAITING_COURIER') return 'Seu pedido foi separado e está pronto! Estamos organizando a entrega. 📦';
+  if (status === 'OUT_FOR_DELIVERY') return 'Seu pedido saiu para entrega! Em breve estará com você. 🛵';
   return null;
 }
 
