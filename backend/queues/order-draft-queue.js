@@ -84,6 +84,7 @@ export function createOrderDraftTimeoutWorker() {
     {
       connection: getRedisConnection(),
       concurrency: 2,
+      drainDelay: 60,
     },
   );
 

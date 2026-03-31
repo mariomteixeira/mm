@@ -68,6 +68,7 @@ export function createInboundTextParseWorker() {
     {
       connection: getRedisConnection(),
       concurrency: 2,
+      drainDelay: 60,
     },
   );
 
