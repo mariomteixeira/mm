@@ -98,6 +98,21 @@ function normalizePaymentIntentFromText(messageText) {
   return null;
 }
 
+const META_OBSERVATION_PATTERNS = [
+  /corrigi/i, /grafia/i, /ortografia/i, /interpret/i,
+  /nao (ha|contém|contem|possui) itens/i, /não (há|contém|contem|possui) itens/i,
+  /pedido anterior/i, /complementar/i, /isoladamente/i,
+  /mencionou pagamento.*sem.*itens/i, /mencionou pagamento.*não.*itens/i,
+  /formatação/i, /formatacao/i, /contexto/i,
+];
+
+function filterMetaObservations(observations) {
+  return observations.filter((obs) => {
+    const text = String(obs).toLowerCase();
+    return !META_OBSERVATION_PATTERNS.some((pattern) => pattern.test(text));
+  });
+}
+
 function cleanString(value) {
   if (value == null) return null;
   const text = String(value).trim();
@@ -147,7 +162,7 @@ export function buildDraftContribution({ parsed, normalizedMessage, messageText,
       reference: deliveryReference,
     },
     paymentIntent,
-    observations: Array.isArray(parsed?.observations) ? parsed.observations : [],
+    observations: filterMetaObservations(Array.isArray(parsed?.observations) ? parsed.observations : []),
     ambiguities: Array.isArray(parsed?.ambiguities) ? parsed.ambiguities : [],
     closingSignals,
     flags: {

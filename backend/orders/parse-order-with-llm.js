@@ -54,8 +54,8 @@ const SYSTEM_PROMPT = [
   '- Em items[], cada item deve ter: name, quantity (número ou null), unit (string ou null), notes (string ou null).',
   '- Em items[].name, preserve o nome completo do produto como o cliente escreveu (ex: "pao frances" → "pão francês", não apenas "pão").',
   '- Corrija a grafia dos nomes silenciosamente, sem mencionar correções em observations.',
-  '- observations: APENAS informações relevantes do pedido (ex: "cliente quer entrega urgente"). NÃO inclua notas sobre formatação, correção de grafia ou interpretação.',
-  '- ambiguities: arrays de strings.',
+  '- observations: use [] (vazio) na maioria dos casos. Só inclua se o cliente pedir algo especial (ex: "entrega urgente", "cortar a carne em bifes"). NUNCA inclua comentários sobre: grafia, formatação, interpretação, contexto de pedido anterior, ou falta de itens.',
+  '- ambiguities: use [] (vazio) na maioria dos casos. Só inclua se realmente houver ambiguidade no pedido.',
   '- Se o cliente mencionar endereço parcialmente, coloque em delivery.address como string.',
 ].join('\n');
 
