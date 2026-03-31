@@ -770,23 +770,9 @@ export default function OrdersBoard() {
           <div className="m-0 text-xl font-bold text-[#24303B] md:text-2xl">{businessConfig.establishmentName}</div>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <span className="text-xs text-[#5A6B7D]" suppressHydrationWarning>
-            {isClient
-              ? `${new Date(nowMs).toLocaleDateString('pt-BR')} • ${new Date(nowMs).toLocaleTimeString('pt-BR')}`
-              : '--/--/---- • --:--:--'}
-          </span>
-          <span
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${realtimeConnected ? 'bg-[#EAF8EF] text-[#1E7A3B]' : 'bg-[#FDECEC] text-[#B42318]'
-              }`}
-          >
-            {!realtimeConnected ? (
-              <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#B42318] border-t-transparent" />
-            ) : null}
-            {realtimeConnected ? 'Conectado' : 'Reconectando'}
-          </span>
           {deliveryActive !== null && (
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-[#5A6B7D]">Entregas</span>
+              <span className="text-sm font-semibold text-[#5A6B7D]">Entregas</span>
               <button
                 type="button"
                 onClick={toggleDelivery}
@@ -805,6 +791,20 @@ export default function OrdersBoard() {
               </button>
             </div>
           )}
+          <span className="text-xs text-[#5A6B7D]" suppressHydrationWarning>
+            {isClient
+              ? `${new Date(nowMs).toLocaleDateString('pt-BR')} • ${new Date(nowMs).toLocaleTimeString('pt-BR')}`
+              : '--/--/---- • --:--:--'}
+          </span>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${realtimeConnected ? 'bg-[#EAF8EF] text-[#1E7A3B]' : 'bg-[#FDECEC] text-[#B42318]'
+              }`}
+          >
+            {!realtimeConnected ? (
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#B42318] border-t-transparent" />
+            ) : null}
+            {realtimeConnected ? 'Conectado' : 'Reconectando'}
+          </span>
         </div>
       </div>
 
