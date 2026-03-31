@@ -1,5 +1,6 @@
 import { prisma } from '../../../backend/db/prisma-client.js';
 import { getRedisConnection } from '../../../backend/queues/redis-connection.js';
+import { VERSION } from '../../../backend/version.js';
 
 export async function GET() {
   const checks = { postgres: false, redis: false };
@@ -18,7 +19,7 @@ export async function GET() {
   const healthy = checks.postgres && checks.redis;
 
   return Response.json(
-    { ok: healthy, checks, timestamp: new Date().toISOString() },
+    { ok: healthy, version: VERSION, checks, timestamp: new Date().toISOString() },
     { status: healthy ? 200 : 503 },
   );
 }
