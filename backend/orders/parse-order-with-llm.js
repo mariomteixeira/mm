@@ -1,6 +1,8 @@
 import { getOpenAIClient, getOpenAITextModel } from '../llm/openai-client.js';
 import { logLLMParserResult, logLLMParserTiming } from '../observability/performance-log.js';
 import { buildParseDecision, parsedOrderSchema } from './order-parser-schema.js';
+import { parsedOrderJsonSchema } from './order-parser-json-schema.js';
+import { ORDER_PARSER_EXAMPLES } from './order-parser-examples.js';
 
 function extractResponseText(response) {
   if (typeof response?.output_text === 'string' && response.output_text.trim()) {
@@ -33,34 +35,40 @@ function extractJsonString(text) {
   throw new Error('Could not locate JSON object in LLM response');
 }
 
-function buildPrompt(messageText) {
-  return [
-    'Você é um extrator de dados de pedidos de supermercado.',
-    'Contexto do negócio: Mercado MM, Vila Planalto - DF, Brasil.',
-    'Sua tarefa é analisar a mensagem do cliente e retornar APENAS JSON válido.',
-    'Não responda como atendente, não escreva texto fora do JSON.',
-    'Interprete o pedido conforme a pessoa envia, sem inventar itens.',
-    'Se não for pedido, marque intent=NOT_ORDER. Se estiver ambíguo, intent=UNCLEAR.',
-    'Use confidence entre 0 e 1.',
-    'Campos esperados: intent, confidence, summary, items[], customerMessage, delivery, paymentIntent, observations[], ambiguities[].',
-    'Em items[], cada item deve ter: name, quantity, unit, notes.',
-    'Regras de formato obrigatórias:',
-    '- Retorne APENAS um objeto JSON (sem markdown).',
-    '- Use null quando um campo não existir (NÃO use string vazia "").',
-    '- paymentIntent deve ser string ou null (ex.: "pix", "cartao", null).',
-    '- delivery deve ser objeto com {address, neighborhood, reference} ou null.',
-    '- delivery.address deve ser string simples (nunca objeto).',
-    '- ambiguities e observations devem ser arrays de strings (nunca objetos).',
-    '- notes de item deve ser string ou null.',
-    '- quantity deve ser número ou null.',
-    'Se o cliente mencionar endereço parcialmente, coloque em delivery.address como string.',
-    '',
-    'Exemplo de saída válida (formato):',
-    '{"intent":"ORDER","confidence":0.92,"summary":"Pedido com hortifruti e carnes","items":[{"name":"alface americana","quantity":3,"unit":"un","notes":null}],"customerMessage":"texto original","delivery":{"address":"Rua 1 lote 3","neighborhood":"Vila Planalto","reference":null},"paymentIntent":null,"observations":[],"ambiguities":[]}',
-    '',
-    'Mensagem do cliente:',
-    messageText,
-  ].join('\n');
+const SYSTEM_PROMPT = [
+  'Você é um extrator de dados de pedidos de supermercado.',
+  'Contexto do negócio: Mercado MM, Vila Planalto - DF, Brasil.',
+  'Sua tarefa é analisar a mensagem do cliente e retornar APENAS JSON válido no formato especificado.',
+  'Não responda como atendente, não escreva texto fora do JSON.',
+  'Interprete o pedido conforme a pessoa envia, sem inventar itens.',
+  '',
+  'Regras de classificação:',
+  '- Se for um pedido claro, marque intent=ORDER com confidence alta (0.85-0.99).',
+  '- Se NÃO for pedido (saudação, agradecimento, pergunta geral), marque intent=NOT_ORDER.',
+  '- Se estiver ambíguo (pode ser pedido ou pergunta), marque intent=UNCLEAR.',
+  '',
+  'Regras de formato:',
+  '- Use null quando um campo não existir (NÃO use string vazia "").',
+  '- paymentIntent: "pix", "dinheiro", "cartao" ou null.',
+  '- delivery: objeto com {address, neighborhood, reference} ou null.',
+  '- Em items[], cada item deve ter: name, quantity (número ou null), unit (string ou null), notes (string ou null).',
+  '- observations e ambiguities: arrays de strings.',
+  '- Se o cliente mencionar endereço parcialmente, coloque em delivery.address como string.',
+].join('\n');
+
+function buildMessages(messageText) {
+  const messages = [
+    { role: 'system', content: SYSTEM_PROMPT },
+  ];
+
+  for (const example of ORDER_PARSER_EXAMPLES) {
+    messages.push({ role: 'user', content: example.input });
+    messages.push({ role: 'assistant', content: JSON.stringify(example.output) });
+  }
+
+  messages.push({ role: 'user', content: messageText });
+
+  return messages;
 }
 
 export async function parseOrderTextWithLLM({ messageText }) {
@@ -77,19 +85,31 @@ export async function parseOrderTextWithLLM({ messageText }) {
   const startedAt = Date.now();
 
   try {
+    const messages = buildMessages(String(messageText).trim());
+
     const response = await client.responses.create({
       model,
-      input: [
-        {
-          role: 'user',
-          content: [{ type: 'input_text', text: buildPrompt(String(messageText).trim()) }],
+      input: messages.map((msg) => ({
+        role: msg.role === 'system' ? 'developer' : msg.role,
+        content: msg.content,
+      })),
+      text: {
+        format: {
+          type: 'json_schema',
+          ...parsedOrderJsonSchema,
         },
-      ],
+      },
     });
 
     const rawText = extractResponseText(response);
-    const jsonText = extractJsonString(rawText);
-    const parsedJson = JSON.parse(jsonText);
+    let parsedJson;
+    try {
+      parsedJson = JSON.parse(rawText);
+    } catch {
+      const jsonText = extractJsonString(rawText);
+      parsedJson = JSON.parse(jsonText);
+    }
+
     const parsed = parsedOrderSchema.parse(parsedJson);
     const decision = buildParseDecision(parsed);
     const durationMs = Date.now() - startedAt;

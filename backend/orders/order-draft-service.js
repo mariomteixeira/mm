@@ -125,8 +125,15 @@ async function createOrderFromDraftTx(tx, { draft, aggregate, closeReason }) {
     select: { deliveryAddress: true },
   });
 
+  const lastOrder = await tx.order.findFirst({
+    orderBy: { orderNumber: 'desc' },
+    select: { orderNumber: true },
+  });
+  const nextOrderNumber = (lastOrder?.orderNumber ?? 0) + 1;
+
   const order = await tx.order.create({
     data: {
+      orderNumber: nextOrderNumber,
       customerId: draft.customerId,
       rawMessage,
       interpretedText,

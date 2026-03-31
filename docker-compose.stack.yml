@@ -1,18 +1,19 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: mm-postgres
+  mysql:
+    image: mysql:8.0
+    container_name: mm-mysql
     restart: unless-stopped
     environment:
-      POSTGRES_DB: mm
-      POSTGRES_USER: mm
-      POSTGRES_PASSWORD: mm
+      MYSQL_DATABASE: mm
+      MYSQL_USER: mm
+      MYSQL_PASSWORD: mm
+      MYSQL_ROOT_PASSWORD: mm_root
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mm -d mm"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "mm", "-pmm"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -37,16 +38,15 @@ services:
       dockerfile: Dockerfile
     container_name: mm-app
     restart: unless-stopped
-    command: sh -lc "npm ci && npm run db:generate && npm run db:migrate:deploy && npm run dev -- --hostname 0.0.0.0 --port 3000"
+    command: sh -lc "[ -d node_modules/.bin ] || npm ci && npm run db:generate && npm run db:migrate:deploy && npm run build && npm run start -- --hostname 0.0.0.0 --port 3000"
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://mm:mm@postgres:5432/mm?schema=public
+      DATABASE_URL: mysql://mm:mm@mysql:3306/mm
       REDIS_URL: redis://redis:6379
-      CHOKIDAR_USEPOLLING: "true"
-      WATCHPACK_POLLING: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -55,6 +55,7 @@ services:
     volumes:
       - .:/app
       - app_node_modules_app:/app/node_modules
+      - app_next_cache:/app/.next
 
   worker-llm:
     build:
@@ -62,14 +63,14 @@ services:
       dockerfile: Dockerfile
     container_name: mm-worker-llm
     restart: unless-stopped
-    command: sh -lc "npm ci && npm run db:generate && npm run worker:llm"
+    command: sh -lc "[ -d node_modules/.bin ] || npm ci && npm run db:generate && npm run worker:llm"
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://mm:mm@postgres:5432/mm?schema=public
+      DATABASE_URL: mysql://mm:mm@mysql:3306/mm
       REDIS_URL: redis://redis:6379
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -83,14 +84,14 @@ services:
       dockerfile: Dockerfile
     container_name: mm-worker-drafts
     restart: unless-stopped
-    command: sh -lc "npm ci && npm run db:generate && npm run worker:drafts"
+    command: sh -lc "[ -d node_modules/.bin ] || npm ci && npm run db:generate && npm run worker:drafts"
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://mm:mm@postgres:5432/mm?schema=public
+      DATABASE_URL: mysql://mm:mm@mysql:3306/mm
       REDIS_URL: redis://redis:6379
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -99,8 +100,9 @@ services:
       - app_node_modules_worker_drafts:/app/node_modules
 
 volumes:
-  postgres_data:
+  mysql_data:
   redis_data:
   app_node_modules_app:
   app_node_modules_worker_llm:
   app_node_modules_worker_drafts:
+  app_next_cache:

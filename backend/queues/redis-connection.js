@@ -10,9 +10,12 @@ export function getRedisConnection() {
     throw new Error('Missing REDIS_URL');
   }
 
+  const isTls = redisUrl.startsWith('rediss://');
+
   connection = new IORedis(redisUrl, {
     maxRetriesPerRequest: null,
     enableReadyCheck: true,
+    ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
   });
 
   return connection;

@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -76,31 +76,32 @@ enum OrderDraftCloseReason {
   TIMEOUT
   EARLY_SIGNAL
   MANUAL
+  LLM_PARSE_FAILED
 }
 
 model Customer {
-  id                String                    @id @default(cuid())
-  name              String?
-  phone             String                    @unique
-  phoneE164         String?                   @unique
-  defaultDeliveryAddress String?
-  whatsappOptInAt   DateTime?
-  whatsappOptOutAt  DateTime?
-  firstOrderAt      DateTime?
-  lastOrderAt       DateTime?
-  totalOrders       Int                       @default(0)
-  totalSpentCents   BigInt                    @default(0)
-  avgDaysBetweenOrders Float?
-  orderPattern      CustomerOrderPattern      @default(UNKNOWN)
-  orderPatternUpdatedAt DateTime?
-  createdAt         DateTime                  @default(now())
-  updatedAt         DateTime                  @updatedAt
-  orders            Order[]
-  orderDrafts       OrderDraft[]
-  productAffinities CustomerProductAffinity[]
-  campaignRecipients CampaignRecipient[]
-  whatsappMessages  WhatsAppMessage[]
-  conversationWindows WhatsAppConversationWindow[]
+  id                     String                    @id @default(cuid())
+  name                   String?
+  phone                  String                    @unique @db.VarChar(30)
+  phoneE164              String?                   @unique @db.VarChar(20)
+  defaultDeliveryAddress String?                   @db.Text
+  whatsappOptInAt        DateTime?
+  whatsappOptOutAt       DateTime?
+  firstOrderAt           DateTime?
+  lastOrderAt            DateTime?
+  totalOrders            Int                       @default(0)
+  totalSpentCents        BigInt                    @default(0)
+  avgDaysBetweenOrders   Float?
+  orderPattern           CustomerOrderPattern      @default(UNKNOWN)
+  orderPatternUpdatedAt  DateTime?
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  orders                 Order[]
+  orderDrafts            OrderDraft[]
+  productAffinities      CustomerProductAffinity[]
+  campaignRecipients     CampaignRecipient[]
+  whatsappMessages       WhatsAppMessage[]
+  conversationWindows    WhatsAppConversationWindow[]
 
   @@index([phoneE164])
   @@index([orderPattern, lastOrderAt])
@@ -122,44 +123,44 @@ model Employee {
 }
 
 model Product {
-  id                String                    @id @default(cuid())
-  name              String
-  normalizedName    String?
-  createdAt         DateTime                  @default(now())
-  updatedAt         DateTime                  @updatedAt
-  orderItems        OrderItem[]
+  id                 String                    @id @default(cuid())
+  name               String                    @db.VarChar(191)
+  normalizedName     String?                   @db.VarChar(191)
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  orderItems         OrderItem[]
   customerAffinities CustomerProductAffinity[]
-  campaigns         Campaign[]
+  campaigns          Campaign[]
 
   @@index([name])
   @@index([normalizedName])
 }
 
 model Order {
-  id               String          @id @default(cuid())
-  orderNumber      Int             @unique @default(autoincrement())
-  customerId       String
-  customer         Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  pickingEmployeeId String?
-  pickingEmployee  Employee?       @relation("OrderPickingEmployee", fields: [pickingEmployeeId], references: [id], onDelete: SetNull)
+  id                 String          @id @default(cuid())
+  orderNumber        Int             @unique
+  customerId         String
+  customer           Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  pickingEmployeeId  String?
+  pickingEmployee    Employee?       @relation("OrderPickingEmployee", fields: [pickingEmployeeId], references: [id], onDelete: SetNull)
   deliveryEmployeeId String?
-  deliveryEmployee Employee?       @relation("OrderDeliveryEmployee", fields: [deliveryEmployeeId], references: [id], onDelete: SetNull)
-  rawMessage       String?
-  interpretedText  String?
-  status           OrderStatus     @default(NEW_ORDER)
-  totalCents       Int?
-  deliveryAddress  String?
-  notes            String?
-  canceledAt       DateTime?
-  cancelReason     String?
-  pickingStartedAt DateTime?
-  pickingFinishedAt DateTime?
-  outForDeliveryAt DateTime?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  items            OrderItem[]
-  statusHistory    StatusHistory[]
-  draft            OrderDraft?
+  deliveryEmployee   Employee?       @relation("OrderDeliveryEmployee", fields: [deliveryEmployeeId], references: [id], onDelete: SetNull)
+  rawMessage         String?         @db.LongText
+  interpretedText    String?         @db.LongText
+  status             OrderStatus     @default(NEW_ORDER)
+  totalCents         Int?
+  deliveryAddress    String?         @db.Text
+  notes              String?         @db.Text
+  canceledAt         DateTime?
+  cancelReason       String?         @db.Text
+  pickingStartedAt   DateTime?
+  pickingFinishedAt  DateTime?
+  outForDeliveryAt   DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  items              OrderItem[]
+  statusHistory      StatusHistory[]
+  draft              OrderDraft?
 
   @@index([status])
   @@index([createdAt])
@@ -168,47 +169,47 @@ model Order {
 }
 
 model OrderItem {
-  id               String   @id @default(cuid())
-  orderId          String
-  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId        String?
-  product          Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  productName      String
-  quantity         Float
-  unit             String?
-  unitPriceCents   Int?
-  createdAt        DateTime @default(now())
+  id             String   @id @default(cuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String?
+  product        Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productName    String   @db.VarChar(191)
+  quantity       Float
+  unit           String?
+  unitPriceCents Int?
+  createdAt      DateTime @default(now())
 
   @@index([productId])
   @@index([productName])
 }
 
 model StatusHistory {
-  id              String       @id @default(cuid())
-  orderId         String
-  order           Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id                  String       @id @default(cuid())
+  orderId             String
+  order               Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   changedByEmployeeId String?
-  changedByEmployee Employee?  @relation(fields: [changedByEmployeeId], references: [id], onDelete: SetNull)
-  fromStatus      OrderStatus?
-  toStatus        OrderStatus
-  changedBy       String?
-  createdAt       DateTime     @default(now())
+  changedByEmployee   Employee?    @relation(fields: [changedByEmployeeId], references: [id], onDelete: SetNull)
+  fromStatus          OrderStatus?
+  toStatus            OrderStatus
+  changedBy           String?
+  createdAt           DateTime     @default(now())
 
   @@index([orderId, createdAt])
 }
 
 model CustomerProductAffinity {
-  id              String    @id @default(cuid())
-  customerId      String
-  customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  productId       String
-  product         Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id               String   @id @default(cuid())
+  customerId       String
+  customer         Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   firstPurchasedAt DateTime
-  lastPurchasedAt DateTime
-  purchaseCount   Int       @default(1)
-  totalQuantity   Float     @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  lastPurchasedAt  DateTime
+  purchaseCount    Int      @default(1)
+  totalQuantity    Float    @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@unique([customerId, productId])
   @@index([productId, purchaseCount])
@@ -216,23 +217,23 @@ model CustomerProductAffinity {
 }
 
 model Campaign {
-  id               String             @id @default(cuid())
-  name             String
-  description      String?
-  targetProductId  String?
-  targetProduct    Product?           @relation(fields: [targetProductId], references: [id], onDelete: SetNull)
-  whatsappTemplateId String?
-  whatsappTemplate WhatsAppTemplate?  @relation(fields: [whatsappTemplateId], references: [id], onDelete: SetNull)
-  templateVariables Json?
-  messageTextFallback String?
-  status           CampaignStatus     @default(DRAFT)
-  scheduledAt      DateTime?
-  startedAt        DateTime?
-  finishedAt       DateTime?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  recipients       CampaignRecipient[]
-  whatsappMessages WhatsAppMessage[]
+  id                  String             @id @default(cuid())
+  name                String
+  description         String?            @db.Text
+  targetProductId     String?
+  targetProduct       Product?           @relation(fields: [targetProductId], references: [id], onDelete: SetNull)
+  whatsappTemplateId  String?
+  whatsappTemplate    WhatsAppTemplate?  @relation(fields: [whatsappTemplateId], references: [id], onDelete: SetNull)
+  templateVariables   Json?
+  messageTextFallback String?            @db.Text
+  status              CampaignStatus     @default(DRAFT)
+  scheduledAt         DateTime?
+  startedAt           DateTime?
+  finishedAt          DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  recipients          CampaignRecipient[]
+  whatsappMessages    WhatsAppMessage[]
 
   @@index([status, scheduledAt])
   @@index([targetProductId])
@@ -248,7 +249,7 @@ model CampaignRecipient {
   status           CampaignRecipientStatus @default(PENDING)
   channel          String                  @default("WHATSAPP")
   sentAt           DateTime?
-  failureReason    String?
+  failureReason    String?                 @db.Text
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
   whatsappMessages WhatsAppMessage[]
@@ -261,12 +262,12 @@ model CampaignRecipient {
 
 model WhatsAppTemplate {
   id               String                   @id @default(cuid())
-  name             String
-  languageCode     String                   @default("pt_BR")
+  name             String                   @db.VarChar(191)
+  languageCode     String                   @default("pt_BR") @db.VarChar(10)
   category         WhatsAppTemplateCategory
-  bodyText         String
-  headerText       String?
-  footerText       String?
+  bodyText         String                   @db.Text
+  headerText       String?                  @db.Text
+  footerText       String?                  @db.Text
   buttonSchema     Json?
   metaTemplateId   String?                  @unique
   isActive         Boolean                  @default(true)
@@ -280,36 +281,36 @@ model WhatsAppTemplate {
 }
 
 model WhatsAppMessage {
-  id                    String                @id @default(cuid())
-  customerId            String
-  customer              Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  campaignId            String?
-  campaign              Campaign?             @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-  campaignRecipientId   String?
-  campaignRecipient     CampaignRecipient?    @relation(fields: [campaignRecipientId], references: [id], onDelete: SetNull)
-  conversationWindowId  String?
-  conversationWindow    WhatsAppConversationWindow? @relation(fields: [conversationWindowId], references: [id], onDelete: SetNull)
-  templateId            String?
-  template              WhatsAppTemplate?     @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  type                  WhatsAppMessageType   @default(TEMPLATE)
-  direction             WhatsAppDirection     @default(OUTBOUND)
-  toPhoneE164           String
-  content               Json?
-  variables             Json?
-  status                WhatsAppMessageStatus @default(QUEUED)
-  provider              String                @default("META_CLOUD_API")
-  providerMessageId     String?               @unique
-  providerErrorCode     String?
-  providerErrorMessage  String?
-  sentAt                DateTime?
-  deliveredAt           DateTime?
-  readAt                DateTime?
-  failedAt              DateTime?
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
-  statusEvents          WhatsAppMessageEvent[]
-  rawPayloads           WhatsAppMessageRawPayload[]
-  orderDraftMessages    OrderDraftMessage[]
+  id                   String                         @id @default(cuid())
+  customerId           String
+  customer             Customer                       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  campaignId           String?
+  campaign             Campaign?                      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  campaignRecipientId  String?
+  campaignRecipient    CampaignRecipient?             @relation(fields: [campaignRecipientId], references: [id], onDelete: SetNull)
+  conversationWindowId String?
+  conversationWindow   WhatsAppConversationWindow?    @relation(fields: [conversationWindowId], references: [id], onDelete: SetNull)
+  templateId           String?
+  template             WhatsAppTemplate?              @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  type                 WhatsAppMessageType            @default(TEMPLATE)
+  direction            WhatsAppDirection              @default(OUTBOUND)
+  toPhoneE164          String                         @db.VarChar(20)
+  content              Json?
+  variables            Json?
+  status               WhatsAppMessageStatus          @default(QUEUED)
+  provider             String                         @default("META_CLOUD_API")
+  providerMessageId    String?                        @unique @db.VarChar(191)
+  providerErrorCode    String?
+  providerErrorMessage String?                        @db.Text
+  sentAt               DateTime?
+  deliveredAt          DateTime?
+  readAt               DateTime?
+  failedAt             DateTime?
+  createdAt            DateTime                       @default(now())
+  updatedAt            DateTime                       @updatedAt
+  statusEvents         WhatsAppMessageEvent[]
+  rawPayloads          WhatsAppMessageRawPayload[]
+  orderDraftMessages   OrderDraftMessage[]
 
   @@index([campaignId, status])
   @@index([customerId, createdAt])
@@ -318,47 +319,47 @@ model WhatsAppMessage {
 }
 
 model OrderDraft {
-  id                String               @id @default(cuid())
-  customerId        String
-  customer          Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  orderId           String?              @unique
-  order             Order?               @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  status            OrderDraftStatus     @default(OPEN)
-  closeReason       OrderDraftCloseReason?
-  aggregatedData    Json?
-  aggregatedText    String?
-  lastLlmDecision   Json?
-  openedAt          DateTime             @default(now())
-  lastMessageAt     DateTime
-  commitDeadlineAt  DateTime
-  committedAt       DateTime?
-  timedOutAt        DateTime?
-  closedAt          DateTime?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  messages          OrderDraftMessage[]
+  id               String                @id @default(cuid())
+  customerId       String
+  customer         Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orderId          String?               @unique
+  order            Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  status           OrderDraftStatus      @default(OPEN)
+  closeReason      OrderDraftCloseReason?
+  aggregatedData   Json?
+  aggregatedText   String?               @db.LongText
+  lastLlmDecision  Json?
+  openedAt         DateTime              @default(now())
+  lastMessageAt    DateTime
+  commitDeadlineAt DateTime
+  committedAt      DateTime?
+  timedOutAt       DateTime?
+  closedAt         DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  messages         OrderDraftMessage[]
 
   @@index([customerId, status, lastMessageAt])
   @@index([status, commitDeadlineAt])
 }
 
 model OrderDraftMessage {
-  id                  String          @id @default(cuid())
-  orderDraftId        String
-  orderDraft          OrderDraft      @relation(fields: [orderDraftId], references: [id], onDelete: Cascade)
-  whatsappMessageId   String          @unique
-  whatsappMessage     WhatsAppMessage @relation(fields: [whatsappMessageId], references: [id], onDelete: Cascade)
-  providerMessageId   String?
-  sequence            Int?
-  messageText         String?
-  parsedPayload       Json?
-  parsedIntent        String?
-  parsedConfidence    Float?
-  hasItems            Boolean         @default(false)
-  hasDeliveryAddress  Boolean         @default(false)
-  hasPaymentIntent    Boolean         @default(false)
-  hasClosingSignal    Boolean         @default(false)
-  createdAt           DateTime        @default(now())
+  id                 String          @id @default(cuid())
+  orderDraftId       String
+  orderDraft         OrderDraft      @relation(fields: [orderDraftId], references: [id], onDelete: Cascade)
+  whatsappMessageId  String          @unique
+  whatsappMessage    WhatsAppMessage @relation(fields: [whatsappMessageId], references: [id], onDelete: Cascade)
+  providerMessageId  String?         @db.VarChar(191)
+  sequence           Int?
+  messageText        String?         @db.Text
+  parsedPayload      Json?
+  parsedIntent       String?
+  parsedConfidence   Float?
+  hasItems           Boolean         @default(false)
+  hasDeliveryAddress Boolean         @default(false)
+  hasPaymentIntent   Boolean         @default(false)
+  hasClosingSignal   Boolean         @default(false)
+  createdAt          DateTime        @default(now())
 
   @@unique([orderDraftId, whatsappMessageId])
   @@index([orderDraftId, createdAt])
@@ -366,47 +367,47 @@ model OrderDraftMessage {
 }
 
 model WhatsAppMessageRawPayload {
-  id                String           @id @default(cuid())
+  id                String          @id @default(cuid())
   whatsappMessageId String
-  whatsappMessage   WhatsAppMessage  @relation(fields: [whatsappMessageId], references: [id], onDelete: Cascade)
-  source            String           @default("WEBHOOK")
-  payloadType       String           @default("MESSAGE")
+  whatsappMessage   WhatsAppMessage @relation(fields: [whatsappMessageId], references: [id], onDelete: Cascade)
+  source            String          @default("WEBHOOK")
+  payloadType       String          @default("MESSAGE")
   payload           Json
-  createdAt         DateTime         @default(now())
+  createdAt         DateTime        @default(now())
 
   @@index([whatsappMessageId, createdAt])
   @@index([source, payloadType, createdAt])
 }
 
 model WhatsAppMessageEvent {
-  id                  String                @id @default(cuid())
-  whatsappMessageId   String
-  whatsappMessage     WhatsAppMessage       @relation(fields: [whatsappMessageId], references: [id], onDelete: Cascade)
-  eventKey            String                @unique
-  providerMessageId   String?
-  status              WhatsAppMessageStatus
-  providerStatus      String?
-  providerTimestamp   DateTime?
-  payload             Json?
-  createdAt           DateTime              @default(now())
+  id                String                @id @default(cuid())
+  whatsappMessageId String
+  whatsappMessage   WhatsAppMessage       @relation(fields: [whatsappMessageId], references: [id], onDelete: Cascade)
+  eventKey          String                @unique @db.VarChar(191)
+  providerMessageId String?               @db.VarChar(191)
+  status            WhatsAppMessageStatus
+  providerStatus    String?
+  providerTimestamp DateTime?
+  payload           Json?
+  createdAt         DateTime              @default(now())
 
   @@index([whatsappMessageId, createdAt])
   @@index([providerMessageId, createdAt])
 }
 
 model WhatsAppConversationWindow {
-  id                   String             @id @default(cuid())
-  customerId           String
-  customer             Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  openedByDirection    WhatsAppDirection
-  openedByMessageId    String?
-  openedAt             DateTime
-  closesAt             DateTime
-  closedAt             DateTime?
-  isOpen               Boolean            @default(true)
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  messages             WhatsAppMessage[]
+  id                String            @id @default(cuid())
+  customerId        String
+  customer          Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  openedByDirection WhatsAppDirection
+  openedByMessageId String?
+  openedAt          DateTime
+  closesAt          DateTime
+  closedAt          DateTime?
+  isOpen            Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  messages          WhatsAppMessage[]
 
   @@index([customerId, isOpen])
   @@index([closesAt, isOpen])

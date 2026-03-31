@@ -20,5 +20,5 @@ export function getOpenAIClient() {
 }
 
 export function getOpenAITextModel() {
-  return process.env.OPENAI_MODEL_TEXT || 'gpt-5-mini';
+  return process.env.OPENAI_MODEL_TEXT || 'gpt-5.4-mini';
 }

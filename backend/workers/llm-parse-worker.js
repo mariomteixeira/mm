@@ -1,5 +1,8 @@
+import { validateEnvironment } from '../shared/validate-env.js';
 import { createInboundTextParseWorker } from '../queues/llm-parse-queue.js';
 import { logJson } from '../shared/logger/json-logger.js';
+
+validateEnvironment();
 
 const worker = createInboundTextParseWorker();
 

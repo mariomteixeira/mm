@@ -1,18 +1,19 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: mm-postgres
+  mysql:
+    image: mysql:8.0
+    container_name: mm-mysql
     restart: unless-stopped
     environment:
-      POSTGRES_DB: mm
-      POSTGRES_USER: mm
-      POSTGRES_PASSWORD: mm
+      MYSQL_DATABASE: mm
+      MYSQL_USER: mm
+      MYSQL_PASSWORD: mm
+      MYSQL_ROOT_PASSWORD: mm_root
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mm -d mm"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "mm", "-pmm"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -32,5 +33,5 @@ services:
       retries: 10
 
 volumes:
-  postgres_data:
+  mysql_data:
   redis_data:

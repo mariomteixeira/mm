@@ -269,9 +269,9 @@ function safeFlags(value) {
 }
 
 export function shouldCloseDraftEarly(aggregate) {
-  // Simplified workflow: do not auto-close early based on address/payment/close signals.
-  // Draft should become an Order only after the aggregation timeout window expires.
-  void aggregate;
+  const flags = aggregate?.flags ?? {};
+  if (!flags.hasItems) return false;
+  if (flags.hasClosingSignal) return true;
   return false;
 }
 

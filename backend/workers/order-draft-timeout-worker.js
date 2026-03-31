@@ -1,5 +1,8 @@
+import { validateEnvironment } from '../shared/validate-env.js';
 import { createOrderDraftTimeoutWorker } from '../queues/order-draft-queue.js';
 import { logJson } from '../shared/logger/json-logger.js';
+
+validateEnvironment();
 
 const worker = createOrderDraftTimeoutWorker();
 

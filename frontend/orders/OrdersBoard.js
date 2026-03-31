@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ORDER_COLUMNS, getColumnByStatus } from './constants.js';
 import { businessConfig } from './business_config.js';
+import { groupItemsBySection } from './product-categorization.js';
 import { formatDateTime, formatElapsedHhMmSs } from './time.js';
 
 const STATUS_TRANSITIONS = {
@@ -13,129 +14,6 @@ const STATUS_TRANSITIONS = {
   OUT_FOR_DELIVERY: ['COMPLETED'],
   COMPLETED: [],
 };
-
-const SECTION_ORDER = ['Açougue', 'Padaria', 'Hortifruti', 'Produtos Gerais'];
-
-const CATEGORY_KEYWORDS = {
-  Açougue: [
-    'carne',
-    'patinho',
-    'acem',
-    'acem moido',
-    'acém',
-    'frango',
-    'file',
-    'filé',
-    'bovina',
-    'suina',
-    'suína',
-    'linguica',
-    'linguiça',
-    'costela',
-    'contra file',
-    'contrafile',
-    'peito de frango',
-  ],
-  Padaria: [
-    'pao',
-    'pão',
-    'frances',
-    'francês',
-    'nutrella',
-    'queijo',
-    'presunto',
-    'peito de peru',
-    'mussarela',
-    'muçarela',
-    'mortadela',
-    'requeijao',
-    'requeijão',
-    'cremoso',
-    'frios',
-    'torrada',
-    'biscoito',
-    'bolo',
-  ],
-  Hortifruti: [
-    'acelga',
-    'alface',
-    'brocolis',
-    'brócolis',
-    'cebolinha',
-    'gengibre',
-    'pepino',
-    'tomate',
-    'cebola',
-    'alho',
-    'beterraba',
-    'inhame',
-    'cenoura',
-    'abobrinha',
-    'abobora',
-    'abóbora',
-    'morango',
-    'manga',
-    'laranja',
-    'mamao',
-    'mamão',
-    'banana',
-    'maca',
-    'maçã',
-    'abacaxi',
-    'melancia',
-    'goiaba',
-    'uva',
-    'pera',
-    'batata',
-    'mandioca',
-    'couve',
-    'espinafre',
-    'repolho',
-    'pimentao',
-    'pimentão',
-    'papaya',
-  ],
-};
-
-const CATEGORY_PHRASE_OVERRIDES = [
-  {
-    section: 'Produtos Gerais',
-    phrases: [
-      'extrato de tomate',
-      'molho de tomate',
-      'ketchup',
-      'macarrao',
-      'macarrão',
-      'penne',
-      'espaguete',
-      'spaghetti',
-      'parafuso',
-      'flocos de milho',
-      'filtro de papel',
-      'papel higienico',
-      'papel higiênico',
-      'papel toalha',
-      'guardanapo',
-      'detergente',
-      'sabao',
-      'sabão',
-      'amaciante',
-      'cafe',
-      'café',
-      'arroz',
-      'feijao',
-      'feijão',
-      'azeite',
-      'quinoa',
-      'palmito',
-      'creme de leite',
-      'leite',
-      'requeijao',
-      'requeijão',
-      'ovos',
-    ],
-  },
-];
 
 function canMoveStatus(fromStatus, toStatus) {
   if (!fromStatus || !toStatus) return false;
@@ -150,36 +28,6 @@ function formatPhoneForDisplay(value) {
   if (withoutCountry.length === 11) return `${withoutCountry.slice(0, 2)} ${withoutCountry.slice(2, 7)}-${withoutCountry.slice(7)}`;
   if (withoutCountry.length === 10) return `${withoutCountry.slice(0, 2)} ${withoutCountry.slice(2, 6)}-${withoutCountry.slice(6)}`;
   return withoutCountry;
-}
-
-function categorizeItem(productName) {
-  const normalized = String(productName ?? '')
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase();
-
-  for (const override of CATEGORY_PHRASE_OVERRIDES) {
-    if (override.phrases.some((phrase) => normalized.includes(phrase.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()))) {
-      return override.section;
-    }
-  }
-
-  for (const section of SECTION_ORDER.slice(0, 3)) {
-    if ((CATEGORY_KEYWORDS[section] || []).some((keyword) => normalized.includes(keyword))) {
-      return section;
-    }
-  }
-
-  return 'Produtos Gerais';
-}
-
-function groupItemsBySection(items) {
-  const sections = new Map(SECTION_ORDER.map((section) => [section, []]));
-  for (const item of items || []) {
-    const section = categorizeItem(item.productName);
-    sections.get(section).push(item);
-  }
-  return SECTION_ORDER.map((section) => ({ section, items: sections.get(section) || [] })).filter((entry) => entry.items.length > 0);
 }
 
 function normalizeNotesForDisplay(value) {
@@ -312,38 +160,38 @@ function ChecklistList({ order, checkedMap, onToggle }) {
           </button>
           {!collapsedBySection[section] ? (
             <div className="space-y-1">
-            {items.map((item) => {
-              const state = checkedMap[item.id] || 'pending';
-              const checked = state === 'checked';
-              const missing = state === 'missing';
-              return (
-                <div key={item.id} className="flex w-full items-start gap-2 rounded-md px-2 py-1 hover:bg-[#F2F7FD]">
-                  <button
-                    type="button"
-                    onClick={() => onToggle(item.id, 'checked')}
-                    className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded border text-xs font-bold ${checked ? 'border-[#2A7F62] bg-[#2A7F62] text-white' : 'border-[#B9C8D8] bg-white text-transparent'
-                      }`}
-                    aria-label="Marcar item como separado"
-                  >
-                    {checked ? '✓' : ''}
-                  </button>
-                  <span
-                    className={`flex-1 ${checked ? 'text-[#6C7C8D] line-through' : missing ? 'text-[#BC2028] line-through' : 'text-[#24303B]'}`}
-                  >
-                    {item.quantity} {item.unit || ''} {item.productName}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onToggle(item.id, 'missing')}
-                    className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded border text-xs font-bold ${missing ? 'border-[#BC2028] bg-[#E84045] text-white' : 'border-[#B9C8D8] bg-white text-[#9AA8B6]'
-                      }`}
-                    aria-label="Marcar item como indisponível"
-                  >
-                    X
-                  </button>
-                </div>
-              );
-            })}
+              {items.map((item) => {
+                const state = checkedMap[item.id] || 'pending';
+                const checked = state === 'checked';
+                const missing = state === 'missing';
+                return (
+                  <div key={item.id} className="flex w-full items-start gap-2 rounded-md px-2 py-1 hover:bg-[#F2F7FD]">
+                    <button
+                      type="button"
+                      onClick={() => onToggle(item.id, 'checked')}
+                      className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded border text-xs font-bold ${checked ? 'border-[#2A7F62] bg-[#2A7F62] text-white' : 'border-[#B9C8D8] bg-white text-transparent'
+                        }`}
+                      aria-label="Marcar item como separado"
+                    >
+                      {checked ? '✓' : ''}
+                    </button>
+                    <span
+                      className={`flex-1 ${checked ? 'text-[#6C7C8D] line-through' : missing ? 'text-[#BC2028] line-through' : 'text-[#24303B]'}`}
+                    >
+                      {item.quantity} {item.unit || ''} {item.productName}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onToggle(item.id, 'missing')}
+                      className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded border text-xs font-bold ${missing ? 'border-[#BC2028] bg-[#E84045] text-white' : 'border-[#B9C8D8] bg-white text-[#9AA8B6]'
+                        }`}
+                      aria-label="Marcar item como indisponível"
+                    >
+                      X
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           ) : null}
         </div>
@@ -418,6 +266,18 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
     setNewMessageText('');
     loadConversation({ reset: true, todayOnly: true });
   }, [order?.id, isConversationOpen]);
+
+  useEffect(() => {
+    if (!order?.id) return;
+    const prevOverflow = document.body.style.overflow;
+    const prevOverscroll = document.body.style.overscrollBehavior;
+    document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'none';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.overscrollBehavior = prevOverscroll;
+    };
+  }, [order?.id]);
 
   useEffect(() => {
     if (!isConversationOpen) return;
@@ -608,7 +468,7 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
         </div>
 
         {isConversationOpen ? (
-          <aside className="absolute bottom-4 right-4 top-[72px] z-10 flex w-[calc(100%-2rem)] max-w-[390px] min-h-0 flex-col rounded-xl border border-[#C8D6E5] bg-[#F7FAFD] p-3 shadow-xl">
+          <aside className="absolute bottom-4 right-4 top-[72px] z-10 flex w-[calc(100%-2rem)] max-w-[390px] min-h-0 touch-pan-y flex-col rounded-xl border border-[#C8D6E5] bg-[#F7FAFD] p-3 shadow-xl overscroll-contain">
             <div className="mb-2 flex items-center justify-between">
               <div className="text-sm font-bold text-[#24303B]">Conversa com cliente</div>
               <button
@@ -627,7 +487,7 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
             <div
               ref={conversationContainerRef}
               onScroll={handleConversationScroll}
-              className="min-h-0 flex-1 overflow-auto rounded-md border border-[#D3DFEB] bg-white p-2"
+              className="min-h-0 flex-1 overflow-auto rounded-md border border-[#D3DFEB] bg-white p-2 overscroll-contain"
             >
               {conversationLoading ? (
                 <div className="text-xs text-[#5A6B7D]">Carregando conversa...</div>
@@ -671,7 +531,7 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
 }
 
 export default function OrdersBoard() {
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState([]); // Os pedidos começam zerados. Conforme algo acontece, eles trocam de estado.
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [nowMs, setNowMs] = useState(Date.now());

@@ -2,6 +2,7 @@ import { Queue, Worker } from 'bullmq';
 import { getRedisConnection } from './redis-connection.js';
 import { logJson } from '../shared/logger/json-logger.js';
 import { processInboundTextMessageWithLLM } from '../orders/process-inbound-text-message.js';
+import { createFailedParseDraft } from '../orders/create-failed-parse-draft.js';
 
 const QUEUE_NAME = 'llm-inbound-text-parse';
 let queueInstance;
@@ -13,8 +14,8 @@ function getQueue() {
     defaultJobOptions: {
       removeOnComplete: 1000,
       removeOnFail: 1000,
-      attempts: 3,
-      backoff: { type: 'exponential', delay: 2000 },
+      attempts: 5,
+      backoff: { type: 'exponential', delay: 3000 },
     },
   });
   return queueInstance;
@@ -70,14 +71,37 @@ export function createInboundTextParseWorker() {
     },
   );
 
-  worker.on('failed', (job, error) => {
+  worker.on('failed', async (job, error) => {
+    const isLastAttempt = job && job.attemptsMade >= (job.opts?.attempts ?? 5);
+
     logJson('error', 'llm_inbound_text_parse_job_failed', {
       jobId: job?.id ?? null,
       providerMessageId: job?.data?.normalizedMessage?.messageId ?? null,
+      attemptsMade: job?.attemptsMade ?? null,
+      isLastAttempt,
       errorName: error?.name ?? 'Error',
       errorCode: error?.code ?? null,
       errorMessage: String(error?.message ?? 'Unknown error').slice(0, 800),
     });
+
+    if (isLastAttempt && job?.data) {
+      try {
+        await createFailedParseDraft({
+          persistedMessageId: job.data.persistedMessageId,
+          normalizedMessage: job.data.normalizedMessage,
+          errorMessage: String(error?.message ?? 'Unknown error').slice(0, 500),
+        });
+        logJson('info', 'llm_parse_failed_draft_created', {
+          jobId: job.id,
+          persistedMessageId: job.data.persistedMessageId,
+        });
+      } catch (draftError) {
+        logJson('error', 'llm_parse_failed_draft_creation_error', {
+          jobId: job.id,
+          errorMessage: String(draftError?.message ?? '').slice(0, 500),
+        });
+      }
+    }
   });
 
   worker.on('error', (error) => {
