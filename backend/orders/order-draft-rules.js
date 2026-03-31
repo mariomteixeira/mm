@@ -78,14 +78,17 @@ function normalizePaymentIntentFromText(messageText) {
   const normalized = normalizeTextForMatch(messageText);
   if (!normalized) return null;
 
-  const explicitMethod = /\b(pix|dinheiro|cartao|cartão)\b/.test(normalized);
-  const paymentContext = /\b(pagamento|pagar|forma de pagamento|aceita|pode ser)\b/.test(normalized);
+  const explicitMethod = /\b(pix|dinheiro|cartao|cartão|debito|débito|credito|crédito|transferencia|transferência)\b/.test(normalized);
+  const paymentContext = /\b(pagamento|pagar|forma de pagamento|aceita|pode ser|vai ser no|pago no|pago com|pago em)\b/.test(normalized);
   if (!explicitMethod && !paymentContext) return null;
 
   const map = [
     [/\bpix\b/, 'pix'],
     [/\bdinheiro\b/, 'dinheiro'],
+    [/\bdebito\b|\bdébito\b/, 'debito'],
+    [/\bcredito\b|\bcrédito\b/, 'credito'],
     [/\bcartao\b|\bcartão\b/, 'cartao'],
+    [/\btransferencia\b|\btransferência\b/, 'transferencia'],
   ];
 
   for (const [pattern, value] of map) {

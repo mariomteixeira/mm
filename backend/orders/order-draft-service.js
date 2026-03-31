@@ -88,11 +88,21 @@ async function createOrderFromDraftTx(tx, { draft, aggregate, closeReason }) {
       (item) => !existingItemKeys.has(`${item.name ?? 'Item'}|${typeof item.quantity === 'number' && Number.isFinite(item.quantity) ? item.quantity : 1}|${item.unit ?? ''}`),
     );
 
+    let existingParsed = {};
+    try { existingParsed = existingOrder.interpretedText ? JSON.parse(existingOrder.interpretedText) : {}; } catch {};
+    const mergedInterpretedText = buildOrderInterpretedText({
+      items: [...(existingParsed.items ?? []), ...(aggregate?.items ?? [])],
+      delivery: aggregate?.delivery?.address ? aggregate.delivery : (existingParsed.delivery ?? null),
+      paymentIntent: aggregate?.paymentIntent ?? existingParsed.paymentIntent ?? null,
+      observations: [...(existingParsed.observations ?? []), ...(aggregate?.observations ?? [])],
+      ambiguities: [...(existingParsed.ambiguities ?? []), ...(aggregate?.ambiguities ?? [])],
+    });
+
     const updatedOrder = await tx.order.update({
       where: { id: existingOrder.id },
       data: {
         rawMessage: [existingOrder.rawMessage, rawMessage].filter(Boolean).join('\n\n--- AMENDMENT ---\n\n') || null,
-        interpretedText: interpretedText ?? existingOrder.interpretedText,
+        interpretedText: mergedInterpretedText ?? existingOrder.interpretedText,
         deliveryAddress: aggregateAddress ?? existingOrder.deliveryAddress,
         notes: [existingOrder.notes, orderNotes].filter(Boolean).join('\n\n') || null,
         items: newItems.length

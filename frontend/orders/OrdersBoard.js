@@ -317,7 +317,7 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
 
   const notesText = normalizeNotesForDisplay(order.notes);
   const isCompleted = order.status === 'COMPLETED';
-  const paymentLabels = { pix: 'PIX', dinheiro: 'Dinheiro', cartao: 'Cartão', cartão: 'Cartão' };
+  const paymentLabels = { pix: 'PIX', dinheiro: 'Dinheiro', cartao: 'Cartão', cartão: 'Cartão', debito: 'Débito', credito: 'Crédito', transferencia: 'Transferência' };
   const paymentStatus = order.paymentIntent ? (paymentLabels[order.paymentIntent] ?? order.paymentIntent) : 'Pendente';
   const addressStatus = order.deliveryAddress ? order.deliveryAddress : 'Pendente';
   const conversationBlocks = [];
