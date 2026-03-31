@@ -101,9 +101,16 @@ function cleanString(value) {
   return text || null;
 }
 
+function sanitizeItemName(name) {
+  if (!name) return name;
+  // Remove non-Latin characters (Arabic, CJK, etc.) keeping Portuguese accented chars
+  const cleaned = name.replace(/[^\p{Script=Latin}\p{N}\s.,/\-()]/gu, '').trim();
+  return cleaned || name;
+}
+
 function normalizeItem(item) {
   return {
-    name: cleanString(item?.name),
+    name: sanitizeItemName(cleanString(item?.name)),
     quantity: typeof item?.quantity === 'number' ? item.quantity : null,
     unit: cleanString(item?.unit),
     notes: cleanString(item?.notes),
