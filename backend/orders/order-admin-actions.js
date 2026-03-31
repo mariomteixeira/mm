@@ -473,6 +473,16 @@ export async function sendOrderCustomerQuestion({ orderId, type }) {
     });
 
     if (existingByOrder) {
+      const existingAggregate = existingByOrder.aggregatedData && typeof existingByOrder.aggregatedData === 'object'
+        ? existingByOrder.aggregatedData
+        : baseAggregate;
+
+      // Clear items from aggregate when reopening a committed draft,
+      // since those items are already in the order. Prevents duplication on amendment.
+      const cleanedAggregate = existingByOrder.status === 'COMMITTED'
+        ? { ...existingAggregate, items: [], stats: { ...existingAggregate.stats, itemCount: 0 } }
+        : existingAggregate;
+
       return tx.orderDraft.update({
         where: { id: existingByOrder.id },
         data: {
@@ -481,7 +491,7 @@ export async function sendOrderCustomerQuestion({ orderId, type }) {
           timedOutAt: null,
           closedAt: null,
           commitDeadlineAt: replyUntil,
-          aggregatedData: mergeControl(existingByOrder.aggregatedData),
+          aggregatedData: mergeControl(cleanedAggregate),
         },
       });
     }
