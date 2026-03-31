@@ -549,7 +549,12 @@ export default function OrdersBoard() {
       const res = await fetch('/api/orders?status=ALL&limit=200', { cache: 'no-store' });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || 'Falha ao carregar orders');
-      setOrders(data.orders || []);
+      const freshOrders = data.orders || [];
+      setOrders(freshOrders);
+      setSelectedOrder((current) => {
+        if (!current) return null;
+        return freshOrders.find((o) => o.id === current.id) ?? null;
+      });
     } catch (e) {
       setError(e.message || 'Erro');
     } finally {
