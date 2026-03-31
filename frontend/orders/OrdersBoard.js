@@ -542,6 +542,8 @@ export default function OrdersBoard() {
   const [draggingOrderId, setDraggingOrderId] = useState(null);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [checkedItemsByOrder, setCheckedItemsByOrder] = useState({});
+  const [deliveryActive, setDeliveryActive] = useState(null);
+  const [deliveryMode, setDeliveryMode] = useState('auto');
 
   async function loadOrders() {
     setLoading(true);
@@ -563,9 +565,36 @@ export default function OrdersBoard() {
     }
   }
 
+  async function loadDeliveryStatus() {
+    try {
+      const res = await fetch('/api/admin/delivery-status', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.ok) {
+        setDeliveryActive(data.active);
+        setDeliveryMode(data.mode);
+      }
+    } catch {}
+  }
+
+  async function toggleDelivery() {
+    const next = !deliveryActive;
+    setDeliveryActive(next);
+    setDeliveryMode('manual');
+    try {
+      await fetch('/api/admin/delivery-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: next }),
+      });
+    } catch {
+      setDeliveryActive(!next);
+    }
+  }
+
   useEffect(() => {
     setIsClient(true);
     loadOrders();
+    loadDeliveryStatus();
   }, []);
 
   useEffect(() => {
@@ -755,6 +784,21 @@ export default function OrdersBoard() {
             ) : null}
             {realtimeConnected ? 'Conectado' : 'Reconectando'}
           </span>
+          {deliveryActive !== null && (
+            <button
+              type="button"
+              onClick={toggleDelivery}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors duration-200 ${
+                deliveryActive
+                  ? 'bg-[#E6F7ED] text-[#1A7A3B] hover:bg-[#D0F0DB]'
+                  : 'bg-[#FDECEC] text-[#B42318] hover:bg-[#FBD5D5]'
+              }`}
+              title={`Entregas ${deliveryActive ? 'ativas' : 'pausadas'}${deliveryMode === 'auto' ? ' (automático)' : ''}`}
+            >
+              <span className={`inline-block h-2.5 w-2.5 rounded-full ${deliveryActive ? 'bg-[#1A7A3B]' : 'bg-[#B42318]'}`} />
+              {deliveryActive ? 'Entregas ON' : 'Entregas OFF'}
+            </button>
+          )}
         </div>
       </div>
 
