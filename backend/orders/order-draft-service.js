@@ -79,6 +79,13 @@ async function createOrderFromDraftTx(tx, { draft, aggregate, closeReason }) {
     const canAmend = ['NEW_ORDER', 'IN_PICKING'].includes(existingOrder.status);
     if (!canAmend) return null;
 
+    const existingItemKeys = new Set(
+      existingOrder.items.map((i) => `${i.productName}|${i.quantity}|${i.unit ?? ''}`),
+    );
+    const newItems = items.filter(
+      (item) => !existingItemKeys.has(`${item.name ?? 'Item'}|${typeof item.quantity === 'number' && Number.isFinite(item.quantity) ? item.quantity : 1}|${item.unit ?? ''}`),
+    );
+
     const updatedOrder = await tx.order.update({
       where: { id: existingOrder.id },
       data: {
@@ -86,9 +93,9 @@ async function createOrderFromDraftTx(tx, { draft, aggregate, closeReason }) {
         interpretedText: interpretedText ?? existingOrder.interpretedText,
         deliveryAddress: aggregateAddress ?? existingOrder.deliveryAddress,
         notes: [existingOrder.notes, orderNotes].filter(Boolean).join('\n\n') || null,
-        items: items.length
+        items: newItems.length
           ? {
-              create: items.map((item) => ({
+              create: newItems.map((item) => ({
                 productName: item.name ?? 'Item',
                 quantity: typeof item.quantity === 'number' && Number.isFinite(item.quantity) ? item.quantity : 1,
                 unit: item.unit ?? null,
