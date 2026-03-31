@@ -785,19 +785,25 @@ export default function OrdersBoard() {
             {realtimeConnected ? 'Conectado' : 'Reconectando'}
           </span>
           {deliveryActive !== null && (
-            <button
-              type="button"
-              onClick={toggleDelivery}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors duration-200 ${
-                deliveryActive
-                  ? 'bg-[#E6F7ED] text-[#1A7A3B] hover:bg-[#D0F0DB]'
-                  : 'bg-[#FDECEC] text-[#B42318] hover:bg-[#FBD5D5]'
-              }`}
-              title={`Entregas ${deliveryActive ? 'ativas' : 'pausadas'}${deliveryMode === 'auto' ? ' (automático)' : ''}`}
-            >
-              <span className={`inline-block h-2.5 w-2.5 rounded-full ${deliveryActive ? 'bg-[#1A7A3B]' : 'bg-[#B42318]'}`} />
-              {deliveryActive ? 'Entregas ON' : 'Entregas OFF'}
-            </button>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-[#5A6B7D]">Entregas</span>
+              <button
+                type="button"
+                onClick={toggleDelivery}
+                className={`relative inline-flex h-[28px] w-[52px] shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-in-out focus:outline-none ${
+                  deliveryActive
+                    ? 'border-[#3CC655] bg-[#3CC655]'
+                    : 'border-[#C5CCD6] bg-[#C5CCD6]'
+                }`}
+                title={`Entregas ${deliveryActive ? 'ativas' : 'pausadas'}${deliveryMode === 'auto' ? ' (automático)' : ''}`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-[22px] w-[22px] rounded-full bg-white shadow-md transition-transform duration-300 ease-in-out ${
+                    deliveryActive ? 'translate-x-[25px]' : 'translate-x-[1px]'
+                  }`}
+                />
+              </button>
+            </div>
           )}
         </div>
       </div>
