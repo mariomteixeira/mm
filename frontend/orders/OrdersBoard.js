@@ -33,22 +33,14 @@ function formatPhoneForDisplay(value) {
 function normalizeNotesForDisplay(value) {
   const raw = String(value || '').trim();
   if (!raw) return '';
-
   let cleaned = raw
     .replace(/\bNeighborhood:\s*[^.|]+[.|]?/gi, ' ')
     .replace(/\bObservations?:\s*/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-
   if (!cleaned) return '';
-
-  const sentenceCandidates = cleaned
-    .split('.')
-    .map((part) => part.trim())
-    .filter(Boolean);
-
+  const sentenceCandidates = cleaned.split('.').map((part) => part.trim()).filter(Boolean);
   if (!sentenceCandidates.length) return cleaned;
-
   const unique = [];
   const seen = new Set();
   for (const sentence of sentenceCandidates) {
@@ -57,7 +49,6 @@ function normalizeNotesForDisplay(value) {
     seen.add(key);
     unique.push(sentence);
   }
-
   return `${unique.join('. ')}${cleaned.endsWith('.') ? '.' : ''}`.trim();
 }
 
@@ -72,22 +63,22 @@ function runWithViewTransition(updateFn) {
 function getConversationDayLabel(dateValue) {
   const date = new Date(dateValue);
   if (Number.isNaN(date.getTime())) return null;
-
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
   const current = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-
   if (current.getTime() === today.getTime()) return 'Hoje';
   if (current.getTime() === yesterday.getTime()) return 'Ontem';
   return date.toLocaleDateString('pt-BR');
 }
 
+/* ─────────────── ORDER CARD ─────────────── */
 function OrderCard({ order, nowMs, onOpen, onDragStart, onDragEnd }) {
   const isCompleted = order.status === 'COMPLETED';
   const elapsed = formatElapsedHhMmSs(order.createdAt, nowMs);
   const itemsPreview = (order.items || []).slice(0, 5);
+  const column = getColumnByStatus(order.status);
 
   return (
     <motion.div
@@ -95,111 +86,136 @@ function OrderCard({ order, nowMs, onOpen, onDragStart, onDragEnd }) {
       role="button"
       tabIndex={0}
       onClick={() => onOpen(order)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') onOpen(order);
-      }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpen(order); }}
       draggable
       onDragStart={(e) => onDragStart(e, order.id)}
       onDragEnd={onDragEnd}
-      className="w-full cursor-pointer rounded-[10px] border border-[#B9C8D8] bg-[#F8FBFF] p-2.5 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-[#F2F7FD] hover:shadow-md md:p-2 lg:p-3"
-      style={{ viewTransitionName: `order-${order.id}` }}
+      className="group w-full cursor-pointer overflow-hidden rounded-lg bg-white shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md active:scale-[0.99]"
+      style={{ viewTransitionName: `order-${order.id}`, borderLeft: `4px solid ${column.accent}` }}
       transition={{ type: 'spring', stiffness: 320, damping: 30 }}
     >
-      <div className="text-[14px] font-bold text-[#24303B] md:text-[13px] lg:text-[14px]">#{order.displayOrderNumber ?? order.orderNumber} • {order.customer?.name || 'Cliente sem nome'}</div>
-      <div className="mt-0.5 text-[11px] text-[#5A6B7D] md:text-[10px] lg:text-xs">{formatPhoneForDisplay(order.customer?.phoneE164 || order.customer?.phone)}</div>
+      <div className="p-3">
+        <div className="flex items-center justify-between">
+          <span className="font-['Outfit'] text-[15px] font-bold text-[#1A1D23]">
+            #{order.displayOrderNumber ?? order.orderNumber}
+          </span>
+          {!isCompleted && (
+            <span className="rounded-full bg-[#F0F2F5] px-2 py-0.5 font-mono text-[11px] font-medium text-[#5A6170]">
+              {elapsed}
+            </span>
+          )}
+        </div>
+        <div className="mt-1 text-[13px] font-medium text-[#3A3F47]">{order.customer?.name || 'Cliente sem nome'}</div>
+        <div className="mt-0.5 text-[11px] text-[#8B93A0]">{formatPhoneForDisplay(order.customer?.phoneE164 || order.customer?.phone)}</div>
 
-      {!isCompleted ? (
-        <>
-          <div className="mt-2 space-y-0.5 text-[12px] text-[#24303B] md:text-[11px] lg:text-[13px]">
-            <div><strong>Endereço:</strong> {order.deliveryAddress || '-'}</div>
-            <div><strong>Qtd. de Pedidos:</strong> {order.customer?.totalOrders ?? 0}</div>
-            <div><strong>Tempo desde recebido:</strong> {elapsed}</div>
-          </div>
+        {!isCompleted && (
+          <>
+            {order.deliveryAddress && (
+              <div className="mt-2 flex items-start gap-1.5 text-[11px] text-[#6B7280]">
+                <span className="mt-px">📍</span>
+                <span className="line-clamp-1">{order.deliveryAddress}</span>
+              </div>
+            )}
 
-          <div className="mt-2">
-            <div className="text-[11px] text-[#5A6B7D] md:text-[10px] lg:text-xs">Lista de pedidos ({itemsPreview.length})</div>
-            <ul className="mt-1 space-y-1 text-[12px] text-[#24303B] md:text-[11px] lg:text-[13px]">
-              {itemsPreview.map((item) => (
-                <li key={item.id} className="flex items-start gap-1.5">
-                  <span className="text-[#647A90]">✓</span>
-                  <span>{item.quantity} {item.unit || ''} {item.productName}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </>
-      ) : null}
+            <div className="mt-2.5 border-t border-[#F0F2F5] pt-2">
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF]">
+                {itemsPreview.length} {itemsPreview.length === 1 ? 'item' : 'itens'}
+              </div>
+              <ul className="space-y-0.5">
+                {itemsPreview.map((item) => (
+                  <li key={item.id} className="flex items-baseline gap-1 text-[12px] text-[#4B5563]">
+                    <span className="font-medium text-[#1A1D23]">{item.quantity}{item.unit ? item.unit : ''}</span>
+                    <span>{item.productName}</span>
+                  </li>
+                ))}
+              </ul>
+              {(order.items || []).length > 5 && (
+                <div className="mt-1 text-[10px] text-[#9CA3AF]">+{order.items.length - 5} mais</div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </motion.div>
   );
 }
 
+/* ─────────────── CHECKLIST ─────────────── */
 function ChecklistList({ order, checkedMap, onToggle }) {
   const sections = useMemo(() => groupItemsBySection(order?.items || []), [order]);
   const [collapsedBySection, setCollapsedBySection] = useState({});
 
-  if (!order?.items?.length) return <div className="text-sm text-[#5A6B7D]">Sem itens neste pedido.</div>;
+  if (!order?.items?.length) return <div className="py-4 text-center text-sm text-[#9CA3AF]">Sem itens neste pedido.</div>;
 
   const toggleSection = (section) => {
-    setCollapsedBySection((current) => ({
-      ...current,
-      [section]: !current[section],
-    }));
+    setCollapsedBySection((current) => ({ ...current, [section]: !current[section] }));
   };
 
+  const sectionIcons = { 'Açougue': '🥩', 'Padaria': '🥖', 'Hortifruti': '🥬', 'Produtos Gerais': '📦' };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {sections.map(({ section, items }) => (
-        <div key={section}>
+        <div key={section} className="overflow-hidden rounded-lg border border-[#E5E7EB]">
           <button
             type="button"
             onClick={() => toggleSection(section)}
-            className="mb-2 flex w-full items-center justify-between rounded-md bg-[#E7EDF4] px-2 py-1 text-left text-sm font-bold text-[#2A3744]"
+            className="flex w-full items-center justify-between bg-[#F9FAFB] px-3 py-2 text-left transition-colors hover:bg-[#F3F4F6]"
           >
-            <span>{section}</span>
-            <span className="text-xs text-[#4B5B6B]">{collapsedBySection[section] ? '▸' : '▾'}</span>
+            <span className="flex items-center gap-2">
+              <span>{sectionIcons[section] || '📦'}</span>
+              <span className="text-sm font-semibold text-[#1A1D23]">{section}</span>
+              <span className="rounded-full bg-[#E5E7EB] px-1.5 py-0.5 text-[10px] font-medium text-[#6B7280]">{items.length}</span>
+            </span>
+            <span className="text-xs text-[#9CA3AF]">{collapsedBySection[section] ? '▸' : '▾'}</span>
           </button>
-          {!collapsedBySection[section] ? (
-            <div className="space-y-1">
+          {!collapsedBySection[section] && (
+            <div className="divide-y divide-[#F3F4F6]">
               {items.map((item) => {
                 const state = checkedMap[item.id] || 'pending';
                 const checked = state === 'checked';
                 const missing = state === 'missing';
                 return (
-                  <div key={item.id} className="flex w-full items-start gap-2 rounded-md px-2 py-1 hover:bg-[#F2F7FD]">
+                  <div key={item.id} className="flex items-center gap-2 px-3 py-2 transition-colors hover:bg-[#FAFBFC]">
                     <button
                       type="button"
                       onClick={() => onToggle(item.id, 'checked')}
-                      className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded border text-xs font-bold ${checked ? 'border-[#2A7F62] bg-[#2A7F62] text-white' : 'border-[#B9C8D8] bg-white text-transparent'
-                        }`}
-                      aria-label="Marcar item como separado"
+                      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 text-xs font-bold transition-all ${
+                        checked
+                          ? 'border-[#10B981] bg-[#10B981] text-white'
+                          : 'border-[#D1D5DB] bg-white text-transparent hover:border-[#10B981]'
+                      }`}
                     >
-                      {checked ? '✓' : ''}
+                      ✓
                     </button>
-                    <span
-                      className={`flex-1 ${checked ? 'text-[#6C7C8D] line-through' : missing ? 'text-[#BC2028] line-through' : 'text-[#24303B]'}`}
-                    >
-                      {item.quantity} {item.unit || ''} {item.productName}
+                    <span className={`flex-1 text-[13px] ${
+                      checked ? 'text-[#9CA3AF] line-through' : missing ? 'text-[#EF4444] line-through' : 'text-[#1A1D23]'
+                    }`}>
+                      <span className="font-medium">{item.quantity}{item.unit ? item.unit : ''}</span> {item.productName}
                     </span>
                     <button
                       type="button"
                       onClick={() => onToggle(item.id, 'missing')}
-                      className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded border text-xs font-bold ${missing ? 'border-[#BC2028] bg-[#E84045] text-white' : 'border-[#B9C8D8] bg-white text-[#9AA8B6]'
-                        }`}
-                      aria-label="Marcar item como indisponível"
+                      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 text-xs font-bold transition-all ${
+                        missing
+                          ? 'border-[#EF4444] bg-[#EF4444] text-white'
+                          : 'border-[#D1D5DB] bg-white text-[#D1D5DB] hover:border-[#EF4444] hover:text-[#EF4444]'
+                      }`}
                     >
-                      X
+                      ✕
                     </button>
                   </div>
                 );
               })}
             </div>
-          ) : null}
+          )}
         </div>
       ))}
     </div>
   );
 }
 
+/* ─────────────── ORDER MODAL ─────────────── */
 function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder, actionLoading, checkedMap, onToggleChecklist }) {
   const [isConversationOpen, setIsConversationOpen] = useState(false);
   const [conversation, setConversation] = useState([]);
@@ -216,13 +232,8 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
 
   const loadConversation = async ({ reset = false, todayOnly = true, before = null } = {}) => {
     if (!order?.id) return;
-    if (reset) {
-      setConversationLoading(true);
-      setConversationError('');
-    } else {
-      setConversationLoadingMore(true);
-    }
-
+    if (reset) { setConversationLoading(true); setConversationError(''); }
+    else { setConversationLoadingMore(true); }
     try {
       const params = new URLSearchParams();
       params.set('limit', '30');
@@ -231,23 +242,18 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
       const res = await fetch(`/api/orders/${order.id}/messages?${params.toString()}`, { cache: 'no-store' });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || data.reason || 'Falha ao carregar conversa');
-
       const page = data.messages || [];
       setConversationHasMore(Boolean(data.hasMore));
       setConversationNextBefore(data.nextBefore || null);
       if (!reset) {
         const el = conversationContainerRef.current;
-        prependScrollStateRef.current = {
-          scrollHeight: el?.scrollHeight ?? 0,
-          scrollTop: el?.scrollTop ?? 0,
-        };
+        prependScrollStateRef.current = { scrollHeight: el?.scrollHeight ?? 0, scrollTop: el?.scrollTop ?? 0 };
       }
       pendingScrollModeRef.current = reset ? 'bottom' : 'prepend';
       setConversation((prev) => {
         if (reset) return page;
         const ids = new Set(prev.map((m) => m.id));
-        const merged = [...page.filter((m) => !ids.has(m.id)), ...prev];
-        return merged;
+        return [...page.filter((m) => !ids.has(m.id)), ...prev];
       });
     } catch (error) {
       setConversationError(error.message || 'Erro ao carregar conversa');
@@ -259,11 +265,8 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
 
   useEffect(() => {
     if (!order?.id || !isConversationOpen) return;
-    setConversation([]);
-    setConversationHasMore(false);
-    setConversationNextBefore(null);
-    setConversationError('');
-    setNewMessageText('');
+    setConversation([]); setConversationHasMore(false); setConversationNextBefore(null);
+    setConversationError(''); setNewMessageText('');
     loadConversation({ reset: true, todayOnly: true });
   }, [order?.id, isConversationOpen]);
 
@@ -273,10 +276,7 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
     const prevOverscroll = document.body.style.overscrollBehavior;
     document.body.style.overflow = 'hidden';
     document.body.style.overscrollBehavior = 'none';
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.body.style.overscrollBehavior = prevOverscroll;
-    };
+    return () => { document.body.style.overflow = prevOverflow; document.body.style.overscrollBehavior = prevOverscroll; };
   }, [order?.id]);
 
   useEffect(() => {
@@ -285,15 +285,11 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
     if (!el) return;
     const mode = pendingScrollModeRef.current;
     if (!mode) return;
-
-    if (mode === 'bottom') {
-      el.scrollTop = el.scrollHeight;
-    } else if (mode === 'prepend') {
+    if (mode === 'bottom') { el.scrollTop = el.scrollHeight; }
+    else if (mode === 'prepend') {
       const prev = prependScrollStateRef.current;
-      const delta = el.scrollHeight - prev.scrollHeight;
-      el.scrollTop = Math.max(0, prev.scrollTop + delta);
+      el.scrollTop = Math.max(0, prev.scrollTop + (el.scrollHeight - prev.scrollHeight));
     }
-
     pendingScrollModeRef.current = null;
   }, [conversation, isConversationOpen]);
 
@@ -303,48 +299,45 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
     let timer = null;
     es.onmessage = () => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        loadConversation({ reset: true, todayOnly: true });
-      }, 160);
+      timer = setTimeout(() => loadConversation({ reset: true, todayOnly: true }), 160);
     };
-    return () => {
-      if (timer) clearTimeout(timer);
-      es.close();
-    };
+    return () => { if (timer) clearTimeout(timer); es.close(); };
   }, [order?.id, isConversationOpen]);
 
   if (!order) return null;
 
+  const column = getColumnByStatus(order.status);
   const notesText = normalizeNotesForDisplay(order.notes);
   const isCompleted = order.status === 'COMPLETED';
   const paymentLabels = { pix: 'PIX', dinheiro: 'Dinheiro', cartao: 'Cartão', cartão: 'Cartão', debito: 'Débito', credito: 'Crédito', transferencia: 'Transferência' };
   const paymentStatus = order.paymentIntent ? (paymentLabels[order.paymentIntent] ?? order.paymentIntent) : 'Pendente';
-  const addressStatus = order.deliveryAddress ? order.deliveryAddress : 'Pendente';
+  const addressStatus = order.deliveryAddress || 'Pendente';
+
   const conversationBlocks = [];
   let lastDayLabel = null;
   for (const msg of conversation) {
     const dayLabel = getConversationDayLabel(msg.createdAt);
     if (dayLabel && dayLabel !== lastDayLabel) {
       conversationBlocks.push(
-        <div key={`day-${msg.id}`} className="my-1 text-center text-[10px] font-semibold uppercase tracking-wide text-[#6A7B8C]">
-          ----- {dayLabel} -----
+        <div key={`day-${msg.id}`} className="my-2 flex items-center gap-2">
+          <div className="h-px flex-1 bg-[#E5E7EB]" />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF]">{dayLabel}</span>
+          <div className="h-px flex-1 bg-[#E5E7EB]" />
         </div>,
       );
       lastDayLabel = dayLabel;
     }
-
     const isInbound = msg.direction === 'INBOUND';
-    const time = msg.createdAt
-      ? new Date(msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-      : '--:--';
+    const time = msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
     conversationBlocks.push(
       <div key={msg.id} className={`flex ${isInbound ? 'justify-start' : 'justify-end'}`}>
-        <div
-          className={`max-w-[88%] rounded-lg px-3 py-2 text-sm ${isInbound ? 'bg-[#DCF8C6] text-[#233333]' : 'bg-[#E6F0FF] text-[#223344]'
-            }`}
-        >
+        <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-[13px] ${
+          isInbound
+            ? 'rounded-bl-md bg-[#E8F5E9] text-[#1B5E20]'
+            : 'rounded-br-md bg-[#E3F2FD] text-[#0D47A1]'
+        }`}>
           <div className="whitespace-pre-wrap break-words">{msg.text || '[mensagem sem texto]'}</div>
-          <div className="mt-1 text-right text-[10px] text-[#657686]">{time}</div>
+          <div className="mt-0.5 text-right text-[10px] opacity-50">{time}</div>
         </div>
       </div>,
     );
@@ -355,11 +348,7 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
     if (!conversationHasMore || conversationLoadingMore || conversationLoading) return;
     if (target.scrollHeight <= target.clientHeight + 8) return;
     if (target.scrollTop <= 36) {
-      loadConversation({
-        reset: false,
-        todayOnly: false,
-        before: conversationNextBefore,
-      });
+      loadConversation({ reset: false, todayOnly: false, before: conversationNextBefore });
     }
   };
 
@@ -389,150 +378,194 @@ function OrderModal({ order, onClose, onMoveStatus, onAskQuestion, onCancelOrder
   };
 
   return (
-    <div onClick={onClose} className="fixed inset-0 z-[1000] flex items-center justify-center bg-[rgba(8,12,18,0.5)] p-3 backdrop-blur-sm">
-      <div onClick={(e) => e.stopPropagation()} className="relative h-[90vh] w-full max-w-[1280px] overflow-hidden rounded-xl border border-[#B9C8D8] bg-white p-4 md:p-5">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h2 className="m-0 text-xl font-bold text-[#24303B] md:text-2xl">Pedido #{order.displayOrderNumber ?? order.orderNumber} • {order.customer?.name || 'Cliente'}</h2>
-            <div className="mt-1 text-sm text-[#5A6B7D]">{formatPhoneForDisplay(order.customer?.phoneE164 || order.customer?.phone)}</div>
+    <div onClick={onClose} className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 p-2 backdrop-blur-[2px] md:p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.97 }}
+        transition={{ duration: 0.2 }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative flex h-[95vh] w-full max-w-[1200px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl md:h-[90vh]"
+      >
+        {/* Modal Header */}
+        <div className="flex shrink-0 items-center justify-between border-b border-[#E5E7EB] px-4 py-3 md:px-6 md:py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl font-['Outfit'] text-sm font-bold text-white" style={{ background: column.accent }}>
+              #{order.displayOrderNumber ?? order.orderNumber}
+            </div>
+            <div>
+              <h2 className="font-['Outfit'] text-lg font-bold text-[#1A1D23] md:text-xl">{order.customer?.name || 'Cliente'}</h2>
+              <div className="text-xs text-[#9CA3AF]">{formatPhoneForDisplay(order.customer?.phoneE164 || order.customer?.phone)}</div>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setIsConversationOpen(true)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#7C93AA] bg-[#EEF4FA] text-base text-[#2A3A4B] transition-transform duration-150 hover:scale-105"
-              aria-label="Abrir conversa"
+              onClick={() => setIsConversationOpen(!isConversationOpen)}
+              className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-all hover:scale-[1.02] ${
+                isConversationOpen
+                  ? 'border-[#2980B9] bg-[#2980B9] text-white'
+                  : 'border-[#D1D5DB] bg-white text-[#4B5563] hover:bg-[#F9FAFB]'
+              }`}
             >
-              💬
+              💬 <span className="hidden sm:inline">Conversa</span>
             </button>
-            <button type="button" onClick={onClose} className="h-9 w-9 rounded-md border border-[#BC2028] bg-[#E84045] text-base font-bold text-white transition-transform duration-150 hover:scale-105" aria-label="Fechar modal">X</button>
+            <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#D1D5DB] text-[#9CA3AF] transition-all hover:border-[#EF4444] hover:bg-[#FEF2F2] hover:text-[#EF4444]">
+              ✕
+            </button>
           </div>
         </div>
 
-        <div className="mt-4 h-[calc(90vh-106px)]">
-          <section className="h-full min-h-0 overflow-y-auto pr-1">
-            <div className="grid gap-2 text-sm text-[#24303B] md:grid-cols-2">
-              <div><strong>Status:</strong> {getColumnByStatus(order.status).title}</div>
-              <div><strong>Criado em:</strong> {formatDateTime(order.createdAt)}</div>
-              <div><strong>Endereço:</strong> {addressStatus}</div>
-              <div><strong>Pagamento:</strong> {paymentStatus}</div>
-              <div><strong>Qtd. de Pedidos:</strong> {order.customer?.totalOrders ?? 0}</div>
-              <div><strong>Atualizado em:</strong> {formatDateTime(order.updatedAt)}</div>
-              {notesText ? <div className="md:col-span-2"><strong>Observações:</strong> {notesText}</div> : null}
+        {/* Modal Body */}
+        <div className="flex min-h-0 flex-1">
+          {/* Left: Order Details */}
+          <section className={`kanban-scroll min-h-0 flex-1 overflow-y-auto p-4 md:p-6 ${isConversationOpen ? 'hidden md:block' : ''}`}>
+            {/* Info Grid */}
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+              <div className="rounded-lg bg-[#F9FAFB] p-3">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF]">Status</div>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full" style={{ background: column.accent }} />
+                  <span className="text-sm font-semibold text-[#1A1D23]">{column.title}</span>
+                </div>
+              </div>
+              <div className="rounded-lg bg-[#F9FAFB] p-3">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF]">Pagamento</div>
+                <div className={`mt-1 text-sm font-semibold ${paymentStatus === 'Pendente' ? 'text-[#F59E0B]' : 'text-[#1A1D23]'}`}>{paymentStatus}</div>
+              </div>
+              <div className="rounded-lg bg-[#F9FAFB] p-3">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF]">Pedidos do cliente</div>
+                <div className="mt-1 text-sm font-semibold text-[#1A1D23]">{order.customer?.totalOrders ?? 0}</div>
+              </div>
+              <div className="col-span-2 rounded-lg bg-[#F9FAFB] p-3 md:col-span-3">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[#9CA3AF]">Endereço</div>
+                <div className={`mt-1 text-sm font-semibold ${addressStatus === 'Pendente' ? 'text-[#F59E0B]' : 'text-[#1A1D23]'}`}>{addressStatus}</div>
+              </div>
             </div>
 
-            <div className="mt-4">
-              <div className="mb-2 text-sm font-bold text-[#24303B]">Mover pedido</div>
+            {notesText && (
+              <div className="mt-3 rounded-lg border border-[#FDE68A] bg-[#FFFBEB] p-3">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[#92400E]">Observações</div>
+                <div className="mt-1 text-sm text-[#78350F]">{notesText}</div>
+              </div>
+            )}
+
+            {/* Status Flow */}
+            <div className="mt-5">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">Mover pedido</div>
               <div className="flex flex-wrap gap-2">
-                {ORDER_COLUMNS.map((column) => {
-                  const active = order.status === column.status;
-                  const allowed = canMoveStatus(order.status, column.status);
+                {ORDER_COLUMNS.map((col) => {
+                  const active = order.status === col.status;
+                  const allowed = canMoveStatus(order.status, col.status);
                   return (
                     <button
-                      key={column.status}
+                      key={col.status}
                       type="button"
                       disabled={active || !!actionLoading || !allowed}
-                      onClick={() => onMoveStatus(order.id, column.status)}
-                      className={`rounded-md border px-3 py-1 text-sm ${active
-                        ? 'border-transparent text-white transition-transform duration-150 hover:scale-[1.03]'
-                        : allowed
-                          ? 'border-[#B9C8D8] bg-[#F8FBFF] text-[#24303B] transition-transform duration-150 hover:scale-[1.03] hover:bg-[#F2F7FD] active:scale-[0.99]'
-                          : 'border-[#D0D7E0] bg-[#EEF2F6] text-[#A0ADBA]'
-                        } disabled:cursor-not-allowed disabled:opacity-60`}
-                      style={active ? { background: column.accent } : undefined}
+                      onClick={() => onMoveStatus(order.id, col.status)}
+                      className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-all ${
+                        active
+                          ? 'border-transparent text-white shadow-sm'
+                          : allowed
+                            ? 'border-[#D1D5DB] bg-white text-[#4B5563] hover:scale-[1.02] hover:border-[#9CA3AF] hover:shadow-sm active:scale-[0.98]'
+                            : 'border-[#F3F4F6] bg-[#F9FAFB] text-[#D1D5DB]'
+                      } disabled:cursor-not-allowed`}
+                      style={active ? { background: col.accent } : undefined}
                     >
-                      {column.title}
+                      {col.title}
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            {!isCompleted ? (
+            {/* Actions */}
+            {!isCompleted && (
               <div className="mt-4">
-                <div className="mb-2 text-sm font-bold text-[#24303B]">Solicitar dados ao cliente</div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">Ações</div>
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" disabled={!!actionLoading} onClick={() => onAskQuestion(order.id, 'address')} className="rounded-md border border-[#B9C8D8] bg-[#F8FBFF] px-3 py-1 text-sm text-[#24303B] transition-transform duration-150 hover:scale-[1.03] hover:bg-[#F2F7FD] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60">Solicitar endereço</button>
-                  <button type="button" disabled={!!actionLoading} onClick={() => onAskQuestion(order.id, 'payment')} className="rounded-md border border-[#B9C8D8] bg-[#F8FBFF] px-3 py-1 text-sm text-[#24303B] transition-transform duration-150 hover:scale-[1.03] hover:bg-[#F2F7FD] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60">Perguntar pagamento</button>
-                  <button type="button" disabled={!!actionLoading} onClick={() => onCancelOrder(order.id)} className="rounded-md border border-[#BC2028] bg-[#E84045] px-3 py-1 text-sm text-white transition-transform duration-150 hover:scale-[1.03] hover:bg-[#D83A3F] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60">Cancelar pedido</button>
+                  <button type="button" disabled={!!actionLoading} onClick={() => onAskQuestion(order.id, 'address')} className="rounded-lg border border-[#D1D5DB] bg-white px-3 py-1.5 text-sm font-medium text-[#4B5563] transition-all hover:scale-[1.02] hover:border-[#9CA3AF] hover:shadow-sm active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50">
+                    📍 Solicitar endereço
+                  </button>
+                  <button type="button" disabled={!!actionLoading} onClick={() => onAskQuestion(order.id, 'payment')} className="rounded-lg border border-[#D1D5DB] bg-white px-3 py-1.5 text-sm font-medium text-[#4B5563] transition-all hover:scale-[1.02] hover:border-[#9CA3AF] hover:shadow-sm active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50">
+                    💳 Perguntar pagamento
+                  </button>
+                  <button type="button" disabled={!!actionLoading} onClick={() => onCancelOrder(order.id)} className="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-1.5 text-sm font-medium text-[#DC2626] transition-all hover:scale-[1.02] hover:bg-[#FEE2E2] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50">
+                    Cancelar pedido
+                  </button>
                 </div>
               </div>
-            ) : null}
+            )}
 
-            <div className="mt-4">
-              <div className="mb-2 flex items-center justify-between">
-                <div className="font-bold text-[#24303B]">Checklist de itens ({order.items?.length || 0})</div>
+            {/* Items Checklist */}
+            <div className="mt-5">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">Itens do pedido ({order.items?.length || 0})</div>
               </div>
               <ChecklistList order={order} checkedMap={checkedMap} onToggle={onToggleChecklist} />
             </div>
+
+            {/* Timestamps */}
+            <div className="mt-5 flex gap-4 border-t border-[#F3F4F6] pt-3 text-[11px] text-[#9CA3AF]">
+              <span>Criado: {formatDateTime(order.createdAt)}</span>
+              <span>Atualizado: {formatDateTime(order.updatedAt)}</span>
+            </div>
           </section>
+
+          {/* Right: Conversation Panel */}
+          {isConversationOpen && (
+            <aside className="flex w-full flex-col border-l border-[#E5E7EB] bg-[#FAFBFC] md:w-[380px] md:min-w-[340px]">
+              <div className="shrink-0 border-b border-[#E5E7EB] px-4 py-3">
+                <div className="text-sm font-semibold text-[#1A1D23]">Conversa com cliente</div>
+                <div className="text-[11px] text-[#9CA3AF]">Role para cima para mensagens anteriores</div>
+              </div>
+
+              <div
+                ref={conversationContainerRef}
+                onScroll={handleConversationScroll}
+                className="chat-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain p-3"
+              >
+                {conversationLoading && <div className="py-4 text-center text-xs text-[#9CA3AF]">Carregando conversa...</div>}
+                {conversationLoadingMore && <div className="mb-2 text-center text-xs text-[#9CA3AF]">Carregando anteriores...</div>}
+                {!conversationLoading && !conversation.length && (
+                  <div className="py-8 text-center text-xs text-[#9CA3AF]">Sem mensagens para este cliente.</div>
+                )}
+                <div className="grid gap-2">{conversationBlocks}</div>
+              </div>
+
+              {conversationError && <div className="mx-3 mb-2 rounded-md bg-[#FEF2F2] px-3 py-1.5 text-xs text-[#DC2626]">{conversationError}</div>}
+
+              <div className="shrink-0 border-t border-[#E5E7EB] p-3">
+                <div className="flex items-end gap-2">
+                  <textarea
+                    rows={2}
+                    value={newMessageText}
+                    onChange={(e) => setNewMessageText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                    placeholder="Digite uma mensagem..."
+                    className="min-h-[48px] flex-1 resize-none rounded-xl border border-[#D1D5DB] bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-[#2980B9] focus:ring-1 focus:ring-[#2980B9]/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={sendMessage}
+                    disabled={sendingMessage || !newMessageText.trim()}
+                    className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-xl bg-[#2980B9] text-white transition-all hover:bg-[#2471A3] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {sendingMessage ? '...' : '➤'}
+                  </button>
+                </div>
+              </div>
+            </aside>
+          )}
         </div>
-
-        {isConversationOpen ? (
-          <aside className="absolute bottom-4 right-4 top-[72px] z-10 flex w-[calc(100%-2rem)] max-w-[390px] min-h-0 touch-pan-y flex-col rounded-xl border border-[#C8D6E5] bg-[#F7FAFD] p-3 shadow-xl overscroll-contain">
-            <div className="mb-2 flex items-center justify-between">
-              <div className="text-sm font-bold text-[#24303B]">Conversa com cliente</div>
-              <button
-                type="button"
-                onClick={() => setIsConversationOpen(false)}
-                className="h-8 w-8 rounded-md border border-[#BC2028] bg-[#E84045] text-sm font-bold text-white transition-transform duration-150 hover:scale-105"
-                aria-label="Fechar conversa"
-              >
-                X
-              </button>
-            </div>
-            <div className="mb-2 text-xs text-[#5A6B7D]">
-              Mostrando mensagens do dia. Role para cima para carregar anteriores.
-            </div>
-
-            <div
-              ref={conversationContainerRef}
-              onScroll={handleConversationScroll}
-              className="min-h-0 flex-1 overflow-auto rounded-md border border-[#D3DFEB] bg-white p-2 overscroll-contain"
-            >
-              {conversationLoading ? (
-                <div className="text-xs text-[#5A6B7D]">Carregando conversa...</div>
-              ) : null}
-              {conversationLoadingMore ? (
-                <div className="mb-2 text-center text-xs text-[#5A6B7D]">Carregando mensagens antigas...</div>
-              ) : null}
-              {!conversationLoading && !conversation.length ? (
-                <div className="text-xs text-[#5A6B7D]">Sem mensagens para este cliente.</div>
-              ) : null}
-
-              <div className="grid gap-2">{conversationBlocks}</div>
-            </div>
-
-            {conversationError ? (
-              <div className="mt-2 text-xs text-[#B00020]">{conversationError}</div>
-            ) : null}
-
-            <div className="mt-2 flex items-end gap-2">
-              <textarea
-                rows={2}
-                value={newMessageText}
-                onChange={(e) => setNewMessageText(e.target.value)}
-                placeholder="Digite uma mensagem..."
-                className="min-h-[56px] flex-1 resize-y rounded-md border border-[#B9C8D8] px-2 py-1.5 text-sm outline-none focus:border-[#7A99B8]"
-              />
-              <button
-                type="button"
-                onClick={sendMessage}
-                disabled={sendingMessage || !newMessageText.trim()}
-                className="rounded-md border border-[#B9C8D8] bg-[#F8FBFF] px-3 py-2 text-sm text-[#24303B] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {sendingMessage ? 'Enviando...' : 'Enviar'}
-              </button>
-            </div>
-          </aside>
-        ) : null}
-      </div>
+      </motion.div>
     </div>
   );
 }
 
+/* ─────────────── MAIN BOARD ─────────────── */
 export default function OrdersBoard() {
-  const [orders, setOrders] = useState([]); // Os pedidos começam zerados. Conforme algo acontece, eles trocam de estado.
+  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [nowMs, setNowMs] = useState(Date.now());
@@ -569,10 +602,7 @@ export default function OrdersBoard() {
     try {
       const res = await fetch('/api/admin/delivery-status', { cache: 'no-store' });
       const data = await res.json();
-      if (data.ok) {
-        setDeliveryActive(data.active);
-        setDeliveryMode(data.mode);
-      }
+      if (data.ok) { setDeliveryActive(data.active); setDeliveryMode(data.mode); }
     } catch {}
   }
 
@@ -586,55 +616,24 @@ export default function OrdersBoard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active: next }),
       });
-    } catch {
-      setDeliveryActive(!next);
-    }
+    } catch { setDeliveryActive(!next); }
   }
 
-  useEffect(() => {
-    setIsClient(true);
-    loadOrders();
-    loadDeliveryStatus();
-  }, []);
-
-  useEffect(() => {
-    const timer = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  useEffect(() => { setIsClient(true); loadOrders(); loadDeliveryStatus(); }, []);
+  useEffect(() => { const timer = setInterval(() => setNowMs(Date.now()), 1000); return () => clearInterval(timer); }, []);
 
   useEffect(() => {
     let closed = false;
     let refreshTimer = null;
     const es = new EventSource('/api/stream/realtime?topic=orders');
-
     const scheduleRefresh = () => {
       if (refreshTimer) clearTimeout(refreshTimer);
-      refreshTimer = setTimeout(() => {
-        if (!actionLoading) loadOrders();
-      }, 180);
+      refreshTimer = setTimeout(() => { if (!actionLoading) loadOrders(); }, 180);
     };
-
-    es.onopen = () => {
-      if (closed) return;
-      setRealtimeConnected(true);
-    };
-
-    es.onmessage = () => {
-      if (closed) return;
-      scheduleRefresh();
-    };
-
-    es.onerror = () => {
-      if (closed) return;
-      setRealtimeConnected(false);
-    };
-
-    return () => {
-      closed = true;
-      setRealtimeConnected(false);
-      if (refreshTimer) clearTimeout(refreshTimer);
-      es.close();
-    };
+    es.onopen = () => { if (!closed) setRealtimeConnected(true); };
+    es.onmessage = () => { if (!closed) scheduleRefresh(); };
+    es.onerror = () => { if (!closed) setRealtimeConnected(false); };
+    return () => { closed = true; setRealtimeConnected(false); if (refreshTimer) clearTimeout(refreshTimer); es.close(); };
   }, [actionLoading]);
 
   async function moveOrderStatus(orderId, toStatus) {
@@ -643,33 +642,15 @@ export default function OrdersBoard() {
     setError('');
     try {
       const currentOrder = orders.find((item) => item.id === orderId);
-      if (currentOrder && !canMoveStatus(currentOrder.status, toStatus)) {
-        throw new Error('Transição inválida para o status selecionado');
-      }
-
-      const res = await fetch(`/api/admin/orders/${orderId}/move`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toStatus }),
-      });
+      if (currentOrder && !canMoveStatus(currentOrder.status, toStatus)) throw new Error('Transição inválida');
+      const res = await fetch(`/api/admin/orders/${orderId}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ toStatus }) });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || data.reason || 'Falha ao mover pedido');
-
       runWithViewTransition(() => {
-        setOrders((current) =>
-          current.map((order) =>
-            order.id === orderId ? { ...order, status: data.toStatus || toStatus, updatedAt: new Date().toISOString() } : order,
-          ),
-        );
-        setSelectedOrder((current) =>
-          current && current.id === orderId ? { ...current, status: data.toStatus || toStatus, updatedAt: new Date().toISOString() } : current,
-        );
+        setOrders((current) => current.map((o) => o.id === orderId ? { ...o, status: data.toStatus || toStatus, updatedAt: new Date().toISOString() } : o));
+        setSelectedOrder((current) => current && current.id === orderId ? { ...current, status: data.toStatus || toStatus, updatedAt: new Date().toISOString() } : current);
       });
-    } catch (e) {
-      setError(e.message || 'Erro ao mover status');
-    } finally {
-      setActionLoading('');
-    }
+    } catch (e) { setError(e.message || 'Erro ao mover status'); } finally { setActionLoading(''); }
   }
 
   async function cancelOrder(orderId) {
@@ -682,14 +663,10 @@ export default function OrdersBoard() {
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || data.reason || 'Falha ao cancelar pedido');
       runWithViewTransition(() => {
-        setOrders((current) => current.filter((order) => order.id !== orderId));
+        setOrders((current) => current.filter((o) => o.id !== orderId));
         setSelectedOrder((current) => (current?.id === orderId ? null : current));
       });
-    } catch (e) {
-      setError(e.message || 'Erro ao cancelar pedido');
-    } finally {
-      setActionLoading('');
-    }
+    } catch (e) { setError(e.message || 'Erro ao cancelar pedido'); } finally { setActionLoading(''); }
   }
 
   async function askOrderQuestion(orderId, type) {
@@ -697,26 +674,15 @@ export default function OrdersBoard() {
     setActionLoading(`ask:${orderId}:${type}`);
     setError('');
     try {
-      const res = await fetch(`/api/admin/orders/${orderId}/ask`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type }),
-      });
+      const res = await fetch(`/api/admin/orders/${orderId}/ask`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type }) });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || data.reason || 'Falha ao enviar pergunta');
-    } catch (e) {
-      setError(e.message || 'Erro ao perguntar ao cliente');
-    } finally {
-      setActionLoading('');
-    }
+    } catch (e) { setError(e.message || 'Erro ao perguntar ao cliente'); } finally { setActionLoading(''); }
   }
 
   const grouped = useMemo(() => {
-    const map = new Map(ORDER_COLUMNS.map((column) => [column.status, []]));
-    for (const order of orders) {
-      const arr = map.get(order.status);
-      if (arr) arr.push(order);
-    }
+    const map = new Map(ORDER_COLUMNS.map((col) => [col.status, []]));
+    for (const order of orders) { const arr = map.get(order.status); if (arr) arr.push(order); }
     return map;
   }, [orders]);
 
@@ -725,10 +691,7 @@ export default function OrdersBoard() {
     event.dataTransfer.setData('text/plain', orderId);
     event.dataTransfer.effectAllowed = 'move';
   }
-
-  function handleCardDragEnd() {
-    setDraggingOrderId(null);
-  }
+  function handleCardDragEnd() { setDraggingOrderId(null); }
 
   async function handleColumnDrop(event, columnStatus) {
     event.preventDefault();
@@ -737,10 +700,7 @@ export default function OrdersBoard() {
     if (!orderId) return;
     const order = orders.find((item) => item.id === orderId);
     if (!order || order.status === columnStatus) return;
-    if (!canMoveStatus(order.status, columnStatus)) {
-      setError('Não é permitido voltar etapa ou mover pedido finalizado.');
-      return;
-    }
+    if (!canMoveStatus(order.status, columnStatus)) { setError('Não é permitido voltar etapa.'); return; }
     await moveOrderStatus(orderId, columnStatus);
   }
 
@@ -750,66 +710,65 @@ export default function OrdersBoard() {
     if (!orderId || !itemId) return;
     setCheckedItemsByOrder((current) => {
       const orderMap = current[orderId] || {};
-      const currentState = orderMap[itemId] || 'pending';
-      const computed = currentState === nextState ? 'pending' : nextState;
-      return {
-        ...current,
-        [orderId]: {
-          ...orderMap,
-          [itemId]: computed,
-        },
-      };
+      const computed = (orderMap[itemId] || 'pending') === nextState ? 'pending' : nextState;
+      return { ...current, [orderId]: { ...orderMap, [itemId]: computed } };
     });
   }
 
   return (
-    <main className="min-h-screen bg-[#E7EDF4] p-3 md:p-5">
-      <div className="mb-3.5 flex flex-col items-start justify-between gap-2.5 sm:flex-row sm:items-center">
+    <main className="min-h-screen bg-[#F0F2F5] p-3 md:p-5">
+      {/* Header */}
+      <header className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <img src={businessConfig.logoPath} alt={businessConfig.establishmentName} className="h-[54px] w-[54px] object-contain" />
-          <div className="m-0 text-xl font-bold text-[#24303B] md:text-2xl">{businessConfig.establishmentName}</div>
+          <img src={businessConfig.logoPath} alt={businessConfig.establishmentName} className="h-12 w-12 rounded-xl object-contain shadow-sm" />
+          <h1 className="font-['Outfit'] text-xl font-bold text-[#1A1D23] md:text-2xl">{businessConfig.establishmentName}</h1>
         </div>
-        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Delivery Toggle */}
           {deliveryActive !== null && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-[#5A6B7D]">Entregas</span>
+            <div className="flex items-center gap-2.5">
+              <span className="text-sm font-semibold text-[#6B7280]">Entregas</span>
               <button
                 type="button"
                 onClick={toggleDelivery}
-                className={`relative inline-flex h-[28px] w-[52px] shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-300 ease-in-out focus:outline-none ${
+                className={`relative inline-flex h-[30px] w-[54px] shrink-0 cursor-pointer items-center rounded-full transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-1 ${
                   deliveryActive
-                    ? 'border-[#3CC655] bg-[#3CC655]'
-                    : 'border-[#C5CCD6] bg-[#C5CCD6]'
+                    ? 'bg-[#10B981] focus:ring-[#10B981]/30'
+                    : 'bg-[#D1D5DB] focus:ring-[#D1D5DB]/30'
                 }`}
                 title={`Entregas ${deliveryActive ? 'ativas' : 'pausadas'}${deliveryMode === 'auto' ? ' (automático)' : ''}`}
               >
-                <span
-                  className={`pointer-events-none inline-block h-[22px] w-[22px] rounded-full bg-white shadow-md transition-transform duration-300 ease-in-out ${
-                    deliveryActive ? 'translate-x-[25px]' : 'translate-x-[1px]'
-                  }`}
-                />
+                <span className={`pointer-events-none inline-block h-[24px] w-[24px] rounded-full bg-white shadow-md transition-transform duration-300 ease-in-out ${
+                  deliveryActive ? 'translate-x-[27px]' : 'translate-x-[3px]'
+                }`} />
               </button>
             </div>
           )}
-          <span className="text-xs text-[#5A6B7D]" suppressHydrationWarning>
+
+          {/* DateTime */}
+          <span className="font-mono text-xs text-[#9CA3AF]" suppressHydrationWarning>
             {isClient
-              ? `${new Date(nowMs).toLocaleDateString('pt-BR')} • ${new Date(nowMs).toLocaleTimeString('pt-BR')}`
-              : '--/--/---- • --:--:--'}
+              ? `${new Date(nowMs).toLocaleDateString('pt-BR')} · ${new Date(nowMs).toLocaleTimeString('pt-BR')}`
+              : '--/--/---- · --:--:--'}
           </span>
-          <span
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${realtimeConnected ? 'bg-[#EAF8EF] text-[#1E7A3B]' : 'bg-[#FDECEC] text-[#B42318]'
-              }`}
-          >
-            {!realtimeConnected ? (
-              <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#B42318] border-t-transparent" />
-            ) : null}
+
+          {/* Connection Status */}
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+            realtimeConnected ? 'bg-[#ECFDF5] text-[#059669]' : 'bg-[#FEF2F2] text-[#DC2626]'
+          }`}>
+            {!realtimeConnected && <span className="h-2.5 w-2.5 animate-spin rounded-full border-[1.5px] border-[#DC2626] border-t-transparent" />}
+            {realtimeConnected && <span className="h-2 w-2 rounded-full bg-[#10B981]" />}
             {realtimeConnected ? 'Conectado' : 'Reconectando'}
           </span>
         </div>
-      </div>
+      </header>
 
-      {error ? <div className="mb-3 text-[#B00020]">{error}</div> : null}
+      {error && (
+        <div className="mb-3 rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-4 py-2 text-sm text-[#DC2626]">{error}</div>
+      )}
 
+      {/* Kanban Board */}
       <section className="flex flex-nowrap gap-3 overflow-x-auto pb-2 xl:grid xl:grid-cols-3 xl:overflow-x-visible 2xl:grid-cols-5">
         {ORDER_COLUMNS.map((column) => {
           const items = grouped.get(column.status) || [];
@@ -818,19 +777,27 @@ export default function OrdersBoard() {
               key={column.status}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => handleColumnDrop(e, column.status)}
-              className="relative flex min-h-[540px] w-[86vw] min-w-[280px] max-w-[370px] shrink-0 flex-col rounded-xl border border-[#B9C8D8] bg-[#D9E2EC] sm:w-[320px] md:min-h-[500px] md:w-[248px] md:min-w-[248px] md:max-w-[248px] lg:min-h-[500px] lg:w-[232px] lg:min-w-[232px] lg:max-w-[232px] xl:min-h-[540px] xl:min-w-0 xl:max-w-none xl:w-auto xl:shrink"
+              className="relative flex min-h-[540px] w-[86vw] min-w-[280px] max-w-[370px] shrink-0 flex-col overflow-hidden rounded-xl sm:w-[320px] md:min-h-[500px] md:w-[248px] md:min-w-[248px] md:max-w-[248px] lg:min-h-[500px] lg:w-[232px] lg:min-w-[232px] lg:max-w-[232px] xl:min-h-[540px] xl:min-w-0 xl:max-w-none xl:w-auto xl:shrink"
+              style={{ background: column.bg, border: `1px solid ${column.border}` }}
             >
-              <div className="flex justify-between rounded-t-xl px-3 py-2.5 text-sm font-bold text-[#F1F6FB]" style={{ background: column.accent }}>
-                <span>{column.title}</span>
-                <span>{items.length}</span>
+              <div className="flex items-center justify-between px-3 py-2.5" style={{ borderBottom: `2px solid ${column.accent}` }}>
+                <span className="font-['Outfit'] text-sm font-bold" style={{ color: column.accent }}>{column.title}</span>
+                <span className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: column.accent }}>
+                  {items.length}
+                </span>
               </div>
-              <motion.div layout className="grid gap-2.5 p-2.5">
+              <motion.div layout className="kanban-scroll grid gap-2.5 overflow-y-auto p-2.5">
                 <AnimatePresence>
                   {items.map((order) => (
                     <OrderCard key={order.id} order={order} nowMs={nowMs} onOpen={setSelectedOrder} onDragStart={handleCardDragStart} onDragEnd={handleCardDragEnd} />
                   ))}
                 </AnimatePresence>
-                {!items.length ? <div className="p-3 text-center text-xs text-[#5A6B7D]">Sem pedidos nesta aba</div> : null}
+                {!items.length && (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <div className="text-2xl opacity-20">📋</div>
+                    <div className="mt-1 text-xs text-[#9CA3AF]">Sem pedidos</div>
+                  </div>
+                )}
               </motion.div>
             </div>
           );

@@ -28,6 +28,9 @@ coverage/
 
 prisma/dev.db*
 
+# Testes manuais
+tests/manual/
+
 .DS_Store
 .vscode/
 .idea/
