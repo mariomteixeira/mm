@@ -1,8 +1,7 @@
 /**
  * Horário de funcionamento do Mercado MM (America/Sao_Paulo)
- * Seg-Sex: 06:00 - 21:00
+ * Seg-Sáb: 06:00 - 21:00
  * Domingo: 07:00 - 14:00
- * Sábado: Fechado
  */
 
 const SCHEDULE = {
@@ -11,7 +10,7 @@ const SCHEDULE = {
   Wed: { open: 6, close: 21 },
   Thu: { open: 6, close: 21 },
   Fri: { open: 6, close: 21 },
-  Sat: null, // Fechado
+  Sat: { open: 6, close: 21 },
   Sun: { open: 7, close: 14 },
 };
 
@@ -42,14 +41,11 @@ export function getBusinessHoursMessage() {
   const { weekday, hour } = getSaoPauloTime();
   const todaySchedule = SCHEDULE[weekday];
 
-  // Sábado - fechado
-  if (!todaySchedule) {
-    return 'Olá! O Mercado MM está fechado aos sábados. Funcionamos de segunda a sexta das 6h às 21h e domingo das 7h às 14h. Deixe sua mensagem que responderemos na reabertura! 😊';
-  }
+  if (!todaySchedule) return null;
 
   // Antes do horário de abertura
   if (hour < todaySchedule.open) {
-    return `Olá! O Mercado MM abre hoje às ${todaySchedule.open}h. Deixe sua mensagem que responderemos assim que abrirmos! 😊`;
+    return `Olá! O Mercado MM abre hoje às ${todaySchedule.open}h. Deixe sua mensagem que responderemos assim que abrirmos! 😊\n\nNosso horário: Seg-Sáb 6h às 21h | Dom 7h às 14h`;
   }
 
   // Depois do horário de fechamento
@@ -65,7 +61,7 @@ export function getBusinessHoursMessage() {
         const dayNames = { Sun: 'domingo', Mon: 'segunda', Tue: 'terça', Wed: 'quarta', Thu: 'quinta', Fri: 'sexta', Sat: 'sábado' };
         const isAmanha = i === 1;
         const label = isAmanha ? 'amanhã' : dayNames[nextDay];
-        return `Olá! O Mercado MM já encerrou o expediente de hoje. Voltamos ${label} às ${nextSchedule.open}h. Deixe sua mensagem que responderemos na reabertura! 😊`;
+        return `Olá! O Mercado MM já encerrou o expediente de hoje. Voltamos ${label} às ${nextSchedule.open}h. Deixe sua mensagem que responderemos na reabertura! 😊\n\nNosso horário: Seg-Sáb 6h às 21h | Dom 7h às 14h`;
       }
     }
   }
@@ -75,8 +71,7 @@ export function getBusinessHoursMessage() {
 
 export function getScheduleForDisplay() {
   return {
-    weekdays: 'Seg-Sex: 06:00 - 21:00',
+    weekdays: 'Seg-Sáb: 06:00 - 21:00',
     sunday: 'Dom: 07:00 - 14:00',
-    saturday: 'Sáb: Fechado',
   };
 }
