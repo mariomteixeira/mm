@@ -5,6 +5,7 @@ import { persistInboundMessageWebhook, persistOutboundStatusWebhook } from './pe
 import { isWithinBusinessHours, getBusinessHoursMessage } from '../shared/business-hours.js';
 import { sendWhatsAppTextMessage } from './send-text-message.js';
 import { normalizePhoneE164 } from '../shared/utils/phone.js';
+import { getRedisConnection } from '../queues/redis-connection.js';
 
 /**
  * Process a normalized WhatsApp webhook payload.
@@ -19,7 +20,12 @@ export async function processNormalizedWhatsAppWebhook(normalized) {
     statuses: { processed: 0, skipped: 0, items: [] },
   };
 
-  const withinHours = isWithinBusinessHours();
+  let withinHours = isWithinBusinessHours();
+  try {
+    const redis = getRedisConnection();
+    const bhEnabled = await redis.get('mercadomm:business_hours_enabled');
+    if (bhEnabled === 'off') withinHours = true; // Bypass: treat as always open
+  } catch {}
 
   for (const message of normalized?.messages ?? []) {
     const item = await persistInboundMessageWebhook(message);

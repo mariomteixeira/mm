@@ -577,6 +577,7 @@ export default function OrdersBoard() {
   const [checkedItemsByOrder, setCheckedItemsByOrder] = useState({});
   const [deliveryActive, setDeliveryActive] = useState(null);
   const [deliveryMode, setDeliveryMode] = useState('auto');
+  const [businessHoursEnabled, setBusinessHoursEnabled] = useState(true);
 
   async function loadOrders() {
     setLoading(true);
@@ -606,6 +607,26 @@ export default function OrdersBoard() {
     } catch {}
   }
 
+  async function loadBusinessHours() {
+    try {
+      const res = await fetch('/api/admin/business-hours', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.ok) setBusinessHoursEnabled(data.enabled);
+    } catch {}
+  }
+
+  async function toggleBusinessHours() {
+    const next = !businessHoursEnabled;
+    setBusinessHoursEnabled(next);
+    try {
+      await fetch('/api/admin/business-hours', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: next }),
+      });
+    } catch { setBusinessHoursEnabled(!next); }
+  }
+
   async function toggleDelivery() {
     const next = !deliveryActive;
     setDeliveryActive(next);
@@ -619,7 +640,7 @@ export default function OrdersBoard() {
     } catch { setDeliveryActive(!next); }
   }
 
-  useEffect(() => { setIsClient(true); loadOrders(); loadDeliveryStatus(); }, []);
+  useEffect(() => { setIsClient(true); loadOrders(); loadDeliveryStatus(); loadBusinessHours(); }, []);
   useEffect(() => { const timer = setInterval(() => setNowMs(Date.now()), 1000); return () => clearInterval(timer); }, []);
 
   useEffect(() => {
@@ -745,6 +766,25 @@ export default function OrdersBoard() {
               </button>
             </div>
           )}
+
+          {/* Business Hours Toggle */}
+          <div className="flex items-center gap-2.5">
+            <span className="text-sm font-semibold text-[#6B7280]">Horário</span>
+            <button
+              type="button"
+              onClick={toggleBusinessHours}
+              className={`relative inline-flex h-[30px] w-[54px] shrink-0 cursor-pointer items-center rounded-full transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-1 ${
+                businessHoursEnabled
+                  ? 'bg-[#10B981] focus:ring-[#10B981]/30'
+                  : 'bg-[#F59E0B] focus:ring-[#F59E0B]/30'
+              }`}
+              title={businessHoursEnabled ? 'Horário de funcionamento ativo (responde fora do horário)' : 'Horário desativado (processa 24h)'}
+            >
+              <span className={`pointer-events-none inline-block h-[24px] w-[24px] rounded-full bg-white shadow-md transition-transform duration-300 ease-in-out ${
+                businessHoursEnabled ? 'translate-x-[27px]' : 'translate-x-[3px]'
+              }`} />
+            </button>
+          </div>
 
           {/* DateTime */}
           <span className="font-mono text-xs text-[#9CA3AF]" suppressHydrationWarning>
