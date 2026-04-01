@@ -11,7 +11,7 @@ const SCHEDULE = {
   Thu: { open: 6, close: 21 },
   Fri: { open: 6, close: 21 },
   Sat: { open: 6, close: 21 },
-  Sun: { open: 7, close: 14 },
+  Sun: { open: 6.5, close: 14 },
 };
 
 function getSaoPauloTime(now = new Date()) {
@@ -31,10 +31,11 @@ function getSaoPauloTime(now = new Date()) {
 }
 
 export function isWithinBusinessHours(now = new Date()) {
-  const { weekday, hour } = getSaoPauloTime(now);
+  const { weekday, hour, minute } = getSaoPauloTime(now);
   const schedule = SCHEDULE[weekday];
   if (!schedule) return false;
-  return hour >= schedule.open && hour < schedule.close;
+  const current = hour + minute / 60;
+  return current >= schedule.open && current < schedule.close;
 }
 
 export function getBusinessHoursMessage() {
@@ -43,13 +44,16 @@ export function getBusinessHoursMessage() {
 
   if (!todaySchedule) return null;
 
+  const current = hour + minute / 60;
+
   // Antes do horário de abertura
-  if (hour < todaySchedule.open) {
-    return `Olá! O Mercado MM abre hoje às ${todaySchedule.open}h. Deixe sua mensagem que responderemos assim que abrirmos! 😊\n\nNosso horário: Seg-Sáb 6h às 21h | Dom 7h às 14h`;
+  if (current < todaySchedule.open) {
+    const openLabel = todaySchedule.open % 1 === 0 ? `${todaySchedule.open}h` : `${Math.floor(todaySchedule.open)}h${Math.round((todaySchedule.open % 1) * 60)}`;
+    return `Olá! O Mercado MM abre hoje às ${openLabel}. Deixe sua mensagem que responderemos assim que abrirmos! 😊\n\nNosso horário: Seg-Sáb 6h às 21h | Dom 6h30 às 14h`;
   }
 
   // Depois do horário de fechamento
-  if (hour >= todaySchedule.close) {
+  if (current >= todaySchedule.close) {
     // Verificar próximo dia de funcionamento
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const todayIndex = days.indexOf(weekday);
@@ -61,7 +65,8 @@ export function getBusinessHoursMessage() {
         const dayNames = { Sun: 'domingo', Mon: 'segunda', Tue: 'terça', Wed: 'quarta', Thu: 'quinta', Fri: 'sexta', Sat: 'sábado' };
         const isAmanha = i === 1;
         const label = isAmanha ? 'amanhã' : dayNames[nextDay];
-        return `Olá! O Mercado MM já encerrou o expediente de hoje. Voltamos ${label} às ${nextSchedule.open}h. Deixe sua mensagem que responderemos na reabertura! 😊\n\nNosso horário: Seg-Sáb 6h às 21h | Dom 7h às 14h`;
+        const nextOpenLabel = nextSchedule.open % 1 === 0 ? `${nextSchedule.open}h` : `${Math.floor(nextSchedule.open)}h${Math.round((nextSchedule.open % 1) * 60)}`;
+        return `Olá! O Mercado MM já encerrou o expediente de hoje. Voltamos ${label} às ${nextOpenLabel}. Deixe sua mensagem que responderemos na reabertura! 😊\n\nNosso horário: Seg-Sáb 6h às 21h | Dom 6h30 às 14h`;
       }
     }
   }
@@ -72,6 +77,6 @@ export function getBusinessHoursMessage() {
 export function getScheduleForDisplay() {
   return {
     weekdays: 'Seg-Sáb: 06:00 - 21:00',
-    sunday: 'Dom: 07:00 - 14:00',
+    sunday: 'Dom: 06:30 - 14:00',
   };
 }
