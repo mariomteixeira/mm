@@ -357,9 +357,9 @@ export default function Landing() {
                 </h1>
 
                 <p className="mt-7 max-w-[52ch] text-[16px] leading-relaxed text-black/70 sm:text-[17px] mm-rise" style={{ animationDelay: '0.35s' }}>
-                  Hortifruti do CEASA-DF, açougue, padaria e mercearia com atendimento pelo
+                  Hortifruti, açougue, padaria e mercearia com atendimento pelo
                   WhatsApp. A gente entrega na <strong className="font-semibold text-black/85">Vila Planalto,
-                  Setor de Clubes e entorno</strong> — com o carinho de quem conhece o bairro.
+                    Setor de Clubes e entorno</strong> — com o carinho de quem conhece o bairro.
                 </p>
               </div>
 
@@ -437,14 +437,11 @@ export default function Landing() {
                   className="absolute left-5 top-5 z-10 rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-white"
                   style={{ background: 'var(--mm-blue-deep)' }}
                 >
-                  Hortifruti · CEASA-DF
+                  Hortifruti · Açougue · Padaria · Mercearia
                 </div>
                 <div className="absolute bottom-5 left-5 right-5 z-10 flex items-end justify-between text-white">
                   <div className="font-display italic text-[22px] leading-tight drop-shadow">
-                    do produtor<br />para o seu prato
-                  </div>
-                  <div className="font-display text-[54px] leading-none drop-shadow" style={{ fontWeight: 700 }}>
-                    MM
+                    Do produtor<br />para a sua cozinha.
                   </div>
                 </div>
               </div>
